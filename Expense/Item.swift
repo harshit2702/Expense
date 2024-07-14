@@ -78,7 +78,7 @@ enum Categorys: String, Codable, CaseIterable, Identifiable {
 
 
 @Model
-final class Item {
+final class Item: Identifiable, Hashable {
     var id: UUID
     var date: Date
     var amount: Double

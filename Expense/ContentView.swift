@@ -9,10 +9,20 @@ import SwiftUI
 import SwiftData
 import Combine
 
-enum Section {
+enum Section:String, Identifiable, CaseIterable {
     case entry
     case data
     case aboutUs
+    
+    var id: String { self.rawValue }
+    
+    var name: String {
+            switch self {
+            case .entry: return "Entry"
+            case .data: return "Data"
+            case .aboutUs: return "About Us"
+            }
+        }
 }
 
 struct AddButton: View {
@@ -55,27 +65,20 @@ struct SidebarLabel: View {
 struct ContentView: View {
     
     @State private var isPresented = false
-    @State private var selectedSection: Section?
+    @State private var selectedSection: Section? = .entry
+    @State private var selectedItem: Item?
 
     var body: some View {
         NavigationSplitView{
-            List {
-                NavigationLink(destination: EntryView(isPresented: $isPresented), tag: Section.entry, selection: $selectedSection) {
-                    SidebarLabel(label: "Entry", isSelected: .constant(selectedSection == .entry))
-                                }
-                NavigationLink(destination: DataView(), tag: Section.data, selection: $selectedSection) {
-                    SidebarLabel(label: "Data", isSelected: .constant(selectedSection == .data))
-                                }
-                NavigationLink(destination: AboutUsView(), tag: Section.aboutUs, selection: $selectedSection) {
-                    SidebarLabel(label: "About us", isSelected: .constant(selectedSection == .aboutUs))
-                                }
+            List(Section.allCases, id: \.self, selection: $selectedSection) {section in
+                SidebarLabel(label: section.name, isSelected: .constant(selectedSection?.name == section.name))
         }
         .listStyle(.sidebar)
         .navigationTitle("Menu")
         }content:{
             switch selectedSection {
             case .entry:
-                EntryView(isPresented: $isPresented)
+                EntryView(isPresented: $isPresented, selectedItem: $selectedItem)
                 .navigationTitle("Entry")
             case .data:
                 Text("Data")
@@ -85,15 +88,27 @@ struct ContentView: View {
                 Text("None")
             }
         } detail: {
-            ZStack{
-                //Do something when its empty
-                VStack{
-                    //Primary
-                    Text("Select an item")
+            switch selectedSection {
+            case .entry:
+                ZStack{
+                    VStack{
+                        //Primary
+                        if let item = selectedItem {
+                            ItemInfo(item: item)
+                        }
+                        else{
+                            Text("No Entry")
+                        }
+                    }
+                    AddButton(isPresented: $isPresented)
                 }
-                AddButton(isPresented: $isPresented)
+            case .data:
+                Text("Data Detail")
+            case .aboutUs:
+                Text("About us Detail")
+            case .none:
+                Text("None")
             }
-            .padding()
             
         }
     }
@@ -106,19 +121,13 @@ struct EntryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [Item]
     @Binding var isPresented: Bool
+    @Binding var selectedItem: Item?
     var body: some View {
         List {
-            ForEach(items) { item in
-                NavigationLink {
-                    ZStack{
-                        VStack{
-                            //Primary
-                            ItemInfo(item: item)
-                        }
-                        AddButton(isPresented: $isPresented)
-                    }
-                } label: {
-                    //Sidebar
+            ForEach(items, id: \.id) { item in
+                Button{
+                    selectedItem = item
+                }label: {
                     HStack{
                         Text(item.category.rawValue)
                             .font(/*@START_MENU_TOKEN@*/.title/*@END_MENU_TOKEN@*/)
