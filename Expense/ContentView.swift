@@ -71,7 +71,7 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView{
             List(Section.allCases, id: \.self, selection: $selectedSection) {section in
-                SidebarLabel(label: section.name, isSelected: .constant(selectedSection?.name == section.name))
+                SidebarLabel(label: section.name, isSelected: .constant(selectedSection == section))
         }
         .listStyle(.sidebar)
         .navigationTitle("Menu")
@@ -95,6 +95,7 @@ struct ContentView: View {
                         //Primary
                         if let item = selectedItem {
                             ItemInfo(item: item)
+                                .id(item.id) // Add this line to force view update when item changes
                         }
                         else{
                             Text("No Entry")
@@ -119,7 +120,7 @@ struct ContentView: View {
 
 struct EntryView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @Binding var isPresented: Bool
     @Binding var selectedItem: Item?
     var body: some View {

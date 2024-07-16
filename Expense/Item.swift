@@ -123,7 +123,7 @@ let descriptions: [String] = [
     "Charity donation"
 ]
 
-let dates = generateDates(count: 30, startingFrom: Date())
+let dates = generateDates(count: 99, startingFrom: Date())
 
 let sampleItems: [Item] = dates.map { date in
     let randomCategory = categories.randomElement()!

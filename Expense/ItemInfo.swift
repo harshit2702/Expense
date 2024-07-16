@@ -10,19 +10,42 @@ import SwiftUI
 struct ItemInfo: View {
     @State var item: Item
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 10) {
-                   Text("ID: \(item.id.uuidString)")
-                       .font(.headline)
-                   Text("Date: \(item.date, formatter: dateFormatter)")
+        GeometryReader{geo in
+            ScrollView{
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    HStack{
+                        Text("Date: \(item.date, formatter: dateFormatter)")
+                            .font(.largeTitle)
+                        Spacer()
+                        Text("Category: \(item.category)")
+                            .font(.largeTitle)
+                    }
+                    .padding(.vertical)
+                    Text("ID: \(item.id.uuidString)")
+                        .font(.headline)
+                    Text("Description: \(item.descriptions)")
                         .font(.title)
-                   Text("Amount: $\(item.amount, specifier: "%.2f")")
-                       .font(.largeTitle)
-                   Text("Description: \(item.descriptions)")
-                .font(.title)                
-                   Text("Category: \(item.category)")
-                        .font(.title)
-               }
-               .padding()
+                    RoundedRectangle(cornerRadius: 10)
+                        .foregroundColor(.blue)
+                        .frame(height: 100)
+                        .overlay(
+                            HStack{
+                                Spacer()
+                                Text("Amount: $\(item.amount, specifier: "%.2f")")
+                                    .font(.largeTitle)
+                                Spacer()
+                            }
+                        )
+                        .padding(.vertical)
+                }
+                .padding()
+                .background(Color.yellow.opacity(0.3))
+                .border(Color.secondary, width: 5)
+                .padding()
+                ChartView(category: item.category)
+                    .frame(width: geo.size.width/2, height: geo.size.height/3)
+            }
+        }
     }
     private var dateFormatter: DateFormatter {
             let formatter = DateFormatter()
