@@ -21,8 +21,6 @@ struct ItemInfo: View {
                             .font(.largeTitle)
                     }
                     .padding(.vertical)
-                    Text("ID: \(item.id.uuidString)")
-                        .font(.headline)
                     Text("Description: \(item.descriptions)")
                         .font(.title)
                     RoundedRectangle(cornerRadius: 10)
@@ -42,8 +40,8 @@ struct ItemInfo: View {
                 .background(Color.yellow.opacity(0.3))
                 .border(Color.secondary, width: 5)
                 .padding()
-                ChartView(category: item.category)
-                    .frame(width: geo.size.width/2, height: geo.size.height/3)
+                ChartView(categories: [item.category])
+                    .frame(width: geo.size.width * 0.9, height: geo.size.height/3)
             }
         }
     }

@@ -18,52 +18,80 @@ enum TimeRange:String, CaseIterable, Identifiable{
 struct ChartView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
-    @State var category: Categorys = .breakfast
+    @State var categories: [Categorys] = [.food]
     @State private var selectedTimeRange: TimeRange = .month
+    @State var selectedDay: Date? 
+    @State var scrollPosition: Date = Date()
+    @State var amountOnSelectedDay: Double?
+    @State var totalAmount: Double?
+    @State var selectedMonth: Date?
+    @State var amountOnSelectedMonth: Double?
+
 
     var body: some View {
-        let filteredItems = sampleItems.filter { $0.category == category }
-
-        VStack{
-            Picker(selection: $selectedTimeRange) {
-                Text("Week").tag(TimeRange.week)
-                Text("Month").tag(TimeRange.month)
-                Text("Year").tag(TimeRange.year)
-            } label: {
-                EmptyView()
-            }
-            .pickerStyle(.segmented)
-
+        @State var filteredItems = items.filter { categories.contains($0.category) }
+        GeometryReader{ geo in
             
-            switch selectedTimeRange {
-            case .week:
-                Chart(filteredItems) { item in
-                    BarMark(
-                        x: .value("Day", item.date, unit: .day),
-                        y: .value("Amount", item.amount)
-                    )
+            HStack{
+                VStack{
+                    switch selectedTimeRange {
+                    case .week:
+                        if let selectedDay = selectedDay{
+                            Text("On \(selectedDay.formatted(.dateTime.year(.twoDigits).month(.abbreviated).day())) the amount spent is \(amountOnSelectedDay ?? 0.0, specifier: "%.2f")")
+                        }
+                        else{
+                            Text("Total Amount \(totalAmount ?? 0.0, specifier: "%.2f") during")
+                        }
+                        Text("\(scrollPosition.addingTimeInterval(-6 * 3600 * 24).formatted(.dateTime.month(.abbreviated).day()))-\(scrollPosition.formatted(.dateTime.year(.twoDigits).month(.abbreviated).day()))")
+                    case .month:
+                        if let selectedDay = selectedDay{
+                            Text("On \(selectedDay.formatted(.dateTime.year(.twoDigits).month(.abbreviated).day())) the amount spent is \(amountOnSelectedDay ?? 0.0, specifier: "%.2f")")
+                        }
+                        else{
+                            Text("Total Amount \(totalAmount ?? 0.0, specifier: "%.2f") during")
+                        }
+                        Text("\(scrollPosition.addingTimeInterval(-29 * 3600 * 24).formatted(.dateTime.month(.abbreviated).day()))-\(scrollPosition.formatted(.dateTime.year(.twoDigits).month(.abbreviated).day()))")
+                    case .year:
+                        if let selectedMonth = selectedMonth{
+                            Text("On \(selectedMonth.formatted(.dateTime.year(.twoDigits).month(.abbreviated))) the amount spent is \(amountOnSelectedMonth ?? 0.0, specifier: "%.2f")")
+                        }
+                        else{
+                            Text("Total Amount \(totalAmount ?? 0.0, specifier: "%.2f") during")
+                        }
+                        let endOfYear = Calendar.current.date(from: Calendar.current.dateComponents([.year,.month], from: scrollPosition)) ?? Date()
+                        let startOfYear = Calendar.current.date(byAdding: DateComponents(year: -1, month: 1), to: endOfYear) ?? Date()
+                        Text("\(startOfYear.formatted(.dateTime.year(.twoDigits).month(.abbreviated)))-\(endOfYear.formatted(.dateTime.year(.twoDigits).month(.abbreviated)))")
+                                        
+                    }
                 }
-                .chartScrollableAxes(.horizontal)
-                .chartXVisibleDomain(length: 3600 * 24 * 7)
-                .chartScrollPosition(initialX: Date().addingTimeInterval(7 * 3600 * 24))
-            case .month:
-                Chart(filteredItems) { item in
-                    BarMark(
-                        x: .value("Day", item.date, unit: .day),
-                        y: .value("Amount", item.amount)
-                    )
+                    .frame(width: geo.size.width * 0.3)
+                
+                VStack{
+                    Picker(selection: $selectedTimeRange) {
+                        Text("Week").tag(TimeRange.week)
+                        Text("Month").tag(TimeRange.month)
+                        Text("Year").tag(TimeRange.year)
+                    } label: {
+                        EmptyView()
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    
+                    switch selectedTimeRange {
+                    case .week:
+                        WeekChartView(items: $filteredItems, selectedDay: $selectedDay, scrollPosition: $scrollPosition, amountOnSelectedDay: $amountOnSelectedDay, totalAmount: $totalAmount)
+                    case .month:
+                        MonthChartView(items: $filteredItems, selectedDay: $selectedDay, scrollPosition: $scrollPosition, amountOnSelectedDay: $amountOnSelectedDay, totalAmount: $totalAmount)
+                    case .year:
+                        YearChartView(items: $filteredItems, selectedMonth: $selectedMonth, scrollPosition: $scrollPosition, amountOnSelectedMonth: $amountOnSelectedMonth, totalAmount: $totalAmount)
+                    }
                 }
-                .chartScrollableAxes(.horizontal)
-                .chartXVisibleDomain(length: 3600 * 24 * 30)
-                .chartScrollPosition(initialX: Date().addingTimeInterval(7 * 3600 * 24))
-            case .year:
-                EmptyView()
+                .padding()
             }
         }
-        .padding()
     }
 }
 
 #Preview {
-    ChartView()
+    ChartView(scrollPosition: Date())
 }
