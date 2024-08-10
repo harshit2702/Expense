@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B126C1D02C673BDD0019BB23 /* DataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B126C1CF2C673BDD0019BB23 /* DataView.swift */; };
 		B12E3DF42C44F3A800AC4F6C /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12E3DF32C44F3A800AC4F6C /* ChartView.swift */; };
 		B13457AE2C413C5A00FF8192 /* AddView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13457AD2C413C5A00FF8192 /* AddView.swift */; };
 		B14E8E9E2C396502002A703D /* ExpenseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B14E8E9D2C396502002A703D /* ExpenseApp.swift */; };
@@ -21,6 +22,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B126C1CF2C673BDD0019BB23 /* DataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataView.swift; sourceTree = "<group>"; };
 		B12E3DF32C44F3A800AC4F6C /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
 		B13457AD2C413C5A00FF8192 /* AddView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddView.swift; sourceTree = "<group>"; };
 		B14E8E9A2C396502002A703D /* Expense.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Expense.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -67,6 +69,7 @@
 			children = (
 				B14E8E9D2C396502002A703D /* ExpenseApp.swift */,
 				B14E8E9F2C396502002A703D /* ContentView.swift */,
+				B126C1CF2C673BDD0019BB23 /* DataView.swift */,
 				B12E3DF32C44F3A800AC4F6C /* ChartView.swift */,
 				B18F54B62C46CB6800B1BE96 /* MonthChartView.swift */,
 				B18F54B82C46CC4D00B1BE96 /* YearChartView.swift */,
@@ -160,6 +163,7 @@
 			files = (
 				B18F54B92C46CC4D00B1BE96 /* YearChartView.swift in Sources */,
 				B14E8EAE2C39B118002A703D /* ItemInfo.swift in Sources */,
+				B126C1D02C673BDD0019BB23 /* DataView.swift in Sources */,
 				B18F54B52C46CA2500B1BE96 /* WeekChartView.swift in Sources */,
 				B18F54B72C46CB6800B1BE96 /* MonthChartView.swift in Sources */,
 				B14E8EA02C396502002A703D /* ContentView.swift in Sources */,

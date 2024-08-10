@@ -81,7 +81,8 @@ struct ContentView: View {
                 EntryView(isPresented: $isPresented, selectedItem: $selectedItem)
                 .navigationTitle("Entry")
             case .data:
-                Text("Data")
+                DataView()
+                    .navigationTitle("Data")
             case .aboutUs:
                 Text("About us")
             case .none:
@@ -173,12 +174,6 @@ struct EntryView: View {
         }
     }
 }
-struct DataView: View {
-    var body: some View {
-        Text("Data View")
-    }
-}
-
 struct AboutUsView: View {
     var body: some View {
         Text("About Us View")
