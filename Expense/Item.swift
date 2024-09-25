@@ -8,7 +8,7 @@
 import Foundation
 import SwiftData
 
-enum Categorys: String, Codable, CaseIterable, Identifiable {
+enum Categorys: String, Codable, CaseIterable, Identifiable,Comparable {
     case food
     case transport
     case breakfast
@@ -74,6 +74,10 @@ enum Categorys: String, Codable, CaseIterable, Identifiable {
     case miscellaneous
     
     var id: String { self.rawValue}
+    
+    static func < (lhs: Categorys, rhs: Categorys) -> Bool {
+           return lhs.rawValue < rhs.rawValue
+       }
 }
 
 
