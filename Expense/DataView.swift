@@ -46,54 +46,6 @@ struct DataView: View {
 
 
 // Placeholder views for each section
-struct OverviewView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Item.date, order: .reverse) private var items: [Item]
-    
-    var categoryAmount: [(category: Categorys, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
-           let amountDict = sampleItems.reduce(into: [Categorys: Double]()) { result, item in
-               let category = item.category
-               result[category, default: 0] += item.amount
-           }
-            
-           let sortedCategories = amountDict.keys.sorted()
-            var cumulativeSum: Double = 0
-            return sortedCategories.map { category in
-                let amount = amountDict[category]!
-                cumulativeSum += amount
-                return (category, amount, cumulativeSum - amount, cumulativeSum)
-            }
-       }
-    
-    @State private var selectedCategoryAmount: Double?
-    @State private var selectedCategory: String?
-
-    var body: some View {
-        VStack {
-            Text("\(String(describing: selectedCategory))")
-            Chart(categoryAmount, id: \.category) { entry in
-                SectorMark(
-                    angle: .value("Category", entry.amount),
-                    innerRadius: .ratio(0.314),
-                    angularInset: 1.5
-                )
-                .foregroundStyle(by: .value("Amount", entry.amount))
-            }
-            .chartAngleSelection(value: $selectedCategoryAmount)
-            .padding()
-        }
-        .onChange(of: selectedCategoryAmount) { newValue in
-                if let selectedAmount = newValue {
-                    if let category = categoryAmount.first(where: { $0.cumulativeAmountSt <= selectedAmount && selectedAmount < $0.cumulativeAmountEnd })?.category {
-                        selectedCategory = category.rawValue
-                    } else {
-                        selectedCategory = "None"
-                    }
-                }
-            }
-    }
-    
-}
 
 struct ComparisonView: View {
     var body: some View {
