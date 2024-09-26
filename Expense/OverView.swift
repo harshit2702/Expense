@@ -34,7 +34,9 @@ struct OverviewView: View {
 
     var body: some View {
         VStack {
-            ZStack {
+            VStack {
+                Text("\(String(describing: selectedCategory))")
+                Text("Amount Spend: \(String(format: "%.2f", selectedPrice))")
                     Chart(categoryAmount, id: \.category) { entry in
                         SectorMark(
                             angle: .value("Category", entry.amount),
@@ -46,13 +48,12 @@ struct OverviewView: View {
                     .chartAngleSelection(value: $selectedCategoryAmount)
                     .padding()
                     
-                    VStack {
-                        Text("\(String(describing: selectedCategory))")
-                        Text("Amount Spend: \(String(format: "%.2f", selectedPrice))")
-                    }
                 }
-            ChartView(categories: [.accommodation,.alcohol])
-            
+            Rectangle()
+                .frame(height: 2.0)
+            ChartView(categories: Categorys.allCases)
+            Rectangle()
+                .frame(height: 2.0)
         }
         .onChange(of: selectedCategoryAmount) { newValue in
             if let selectedAmount = newValue {

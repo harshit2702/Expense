@@ -45,7 +45,7 @@ struct MonthChartView: View {
             .chartScrollPosition(x: $scrollPosition)
 //            .chartScrollPosition(initialX:  Date().addingTimeInterval(30 * 3600 * 24))
             .onAppear(perform: {
-                scrollPosition = mostRecentDate
+                scrollPosition = mostRecentDate.addingTimeInterval(-29 * 3600 * 24)
             })
             .onChange(of: selectedDay, { oldValue, newValue in
                 if let selectedDay {

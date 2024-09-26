@@ -27,7 +27,6 @@ struct DataView: View {
                     SidebarLabel(label: section.rawValue, isSelected: .constant(selectedDataViewSection == section))
                 }
             }
-            .navigationTitle("Data Analysis")
         }
     }
 

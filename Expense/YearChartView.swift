@@ -46,7 +46,7 @@ struct YearChartView: View {
             .chartXVisibleDomain(length: 3600 * 24 * 365)
             .chartScrollPosition(x: $scrollPosition)
             .onAppear(perform: {
-                scrollPosition = mostRecentDate
+                scrollPosition = mostRecentDate.addingTimeInterval(-336 * 24 * 3600)
             })
             .chartXSelection(value: $selectedMonth)
             .onChange(of: selectedMonth) { newValue in

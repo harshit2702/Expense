@@ -11,6 +11,7 @@ import Combine
 
 enum Section:String, Identifiable, CaseIterable {
     case entry
+    case overview
     case data
     case aboutUs
     
@@ -19,6 +20,7 @@ enum Section:String, Identifiable, CaseIterable {
     var name: String {
             switch self {
             case .entry: return "Entry"
+            case .overview: return "Overview"
             case .data: return "Data"
             case .aboutUs: return "About Us"
             }
@@ -67,56 +69,76 @@ struct ContentView: View {
     @State private var isPresented = false
     @State private var selectedSection: Section? = .entry
     @State private var selectedItem: Item?
+    @State private var isEntrySidebarVisible: Bool = true // Control sidebar visibility
 
     var body: some View {
-        NavigationSplitView{
-            List(Section.allCases, id: \.self, selection: $selectedSection) {section in
+        NavigationSplitView {
+            // Main Sidebar
+            List(Section.allCases, id: \.self, selection: $selectedSection) { section in
                 SidebarLabel(label: section.name, isSelected: .constant(selectedSection == section))
-        }
-        .listStyle(.sidebar)
-        .navigationTitle("Menu")
-        }content:{
+            }
+            .frame(minWidth: 300, idealWidth: 350, maxWidth: 400)
+            .listStyle(.sidebar)
+        } detail: {
             switch selectedSection {
             case .entry:
-                EntryView(isPresented: $isPresented, selectedItem: $selectedItem)
+                ZStack {
+                    HStack {
+                        if isEntrySidebarVisible {
+                            // Sidebar for Entries
+                            EntryView(isPresented: $isPresented, selectedItem: $selectedItem)
+                                .frame(minWidth: 300, idealWidth: 350, maxWidth: 400) // Set max width for the sidebar
+                                .transition(.move(edge: .leading)) // Animate sidebar appearance/disappearance
+                        }
+                        
+                        // Detail View for Entry
+                        VStack {
+                            if let item = selectedItem {
+                                ItemInfo(item: item)
+                                    .id(item.id)
+                                    .padding()
+                            } else {
+                                Text("Select an entry from the sidebar")
+                                    .foregroundColor(.secondary)
+                                    .padding()
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    
+                    AddButton(isPresented: $isPresented)
+                }
+                .toolbar {
+                    // Add a button to toggle the sidebar
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            withAnimation {
+                                isEntrySidebarVisible.toggle()
+                            }
+                        }) {
+                            Image(systemName: isEntrySidebarVisible ? "chevron.left" : "chevron.right")
+                        }
+                    }
+                }
                 .navigationTitle("Entry")
+                
             case .data:
                 DataView()
                     .navigationTitle("Data")
             case .aboutUs:
-                Text("About us")
+                Text("About Us")
+                    .navigationTitle("About Us")
+            case .some(.overview):
+                OverviewView()
+                    .navigationTitle("Overview")
             case .none:
-                Text("None")
+                Text("Select a section")
             }
-        } detail: {
-            switch selectedSection {
-            case .entry:
-                ZStack{
-                    VStack{
-                        //Primary
-                        if let item = selectedItem {
-                            ItemInfo(item: item)
-                                .id(item.id) // Add this line to force view update when item changes
-                        }
-                        else{
-                            Text("No Entry")
-                        }
-                    }
-                    AddButton(isPresented: $isPresented)
-                }
-            case .data:
-                Text("Data Detail")
-            case .aboutUs:
-                Text("About us Detail")
-            case .none:
-                Text("None")
-            }
-            
         }
     }
-
-    
 }
+
+
 
 
 struct EntryView: View {
@@ -130,14 +152,9 @@ struct EntryView: View {
                 Button{
                     selectedItem = item
                 }label: {
-                    HStack{
-                        Text(item.category.rawValue)
-                            .font(/*@START_MENU_TOKEN@*/.title/*@END_MENU_TOKEN@*/)
-                        Spacer()
-                        Text(String(item.amount) + "INR")
-                            .font(.title3)
-                            .bold()
-                    }
+                    // Reuse SidebarLabel style for each entry
+                    SidebarLabel(label: "\(item.category.rawValue) - \(String(item.amount)) INR", isSelected: .constant(selectedItem?.id == item.id))
+                        .frame(maxWidth: .infinity)
                 }
             }
             .onDelete(perform: deleteItems)
@@ -145,17 +162,23 @@ struct EntryView: View {
                 AddView(isPresented: $isPresented)
             }
         }
+        .listStyle(.sidebar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 EditButton()
             }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: deleteAllItems) {
+                        Label("Delete All", systemImage: "trash")
+                    }
+                }
             ToolbarItem {
                 Button(action: addItem) {
                     Label("Add Item", systemImage: "plus")
                 }
             }
         }
-        .navigationTitle("Entry")
+        .navigationTitle("Entries")
 
     }
     private func addItem() {
@@ -170,6 +193,13 @@ struct EntryView: View {
         withAnimation {
             for index in offsets {
                 modelContext.delete(items[index])
+            }
+        }
+    }
+    private func deleteAllItems() {
+        withAnimation {
+            for item in items {
+                modelContext.delete(item)
             }
         }
     }

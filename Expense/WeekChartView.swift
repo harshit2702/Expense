@@ -44,7 +44,7 @@ struct WeekChartView: View {
             .chartScrollPosition(x: $scrollPosition)
             //        .chartScrollPosition(initialX: Date().addingTimeInterval(7 * 3600 * 24))
             .onAppear(perform: {
-                scrollPosition = mostRecentDate
+                scrollPosition = mostRecentDate.addingTimeInterval(-6 * 3600 * 24)
             })
             .onChange(of: selectedDay, { oldValue, newValue in
                 if let selectedDay {
