@@ -10,27 +10,30 @@ import SwiftData
 import Charts
 
 struct MonthChartView: View {
-    @Binding var items: [Item]
+    @State var items: [CategorySummary]
     @Binding var selectedDay: Date?
     @Binding var scrollPosition: Date
     @Binding var amountOnSelectedDay: Double?
     @Binding var totalAmount: Double?
 
     var body: some View {
+        // Print items to debug if data is being correctly passed
+        print("Month Chart Items: \(items)")
+
         @State var dailyItems = items.reduce(into: [Date: Double]()) { result, item in
             let day = Calendar.current.startOfDay(for: item.date)
-            result[day, default: 0] += item.amount
+            result[day, default: 0] += item.totalAmount
         }
-        
+
         @State var mostRecentDate = dailyItems.keys.max() ?? Date()
-        
+
         func calculateTotalAmount(for startDate: Date, rangeInDays: Int) -> Double {
-                    let endDate = startDate.addingTimeInterval(TimeInterval(rangeInDays * 24 * 3600))
-                    return dailyItems.filter { $0.key >= startDate && $0.key <= endDate }.reduce(0) { $0 + $1.value }
-                }
-        
-        return VStack{
-            Chart(dailyItems.sorted(by: { $0.key < $1.key }), id: \.key)  { date, amount in
+            let endDate = startDate.addingTimeInterval(TimeInterval(rangeInDays * 24 * 3600))
+            return dailyItems.filter { $0.key >= startDate && $0.key <= endDate }.reduce(0) { $0 + $1.value }
+        }
+
+        return VStack {
+            Chart(dailyItems.sorted(by: { $0.key < $1.key }), id: \.key) { date, amount in
                 BarMark(
                     x: .value("Day", date, unit: .day),
                     y: .value("Amount", amount)
@@ -43,16 +46,15 @@ struct MonthChartView: View {
             .chartScrollableAxes(.horizontal)
             .chartXVisibleDomain(length: 3600 * 24 * 30)
             .chartScrollPosition(x: $scrollPosition)
-//            .chartScrollPosition(initialX:  Date().addingTimeInterval(30 * 3600 * 24))
-            .onAppear(perform: {
+            .onAppear {
                 scrollPosition = mostRecentDate.addingTimeInterval(-29 * 3600 * 24)
-            })
-            .onChange(of: selectedDay, { oldValue, newValue in
+            }
+            .onChange(of: selectedDay) { _ in
                 if let selectedDay {
                     amountOnSelectedDay = dailyItems[Calendar.current.startOfDay(for: selectedDay)]
                 }
-            })
-            .onChange(of: scrollPosition){ newScrollPosition in
+            }
+            .onChange(of: scrollPosition) { newScrollPosition in
                 totalAmount = calculateTotalAmount(for: newScrollPosition, rangeInDays: 30)
             }
             .chartXSelection(value: $selectedDay)
@@ -63,18 +65,6 @@ struct MonthChartView: View {
                     AxisValueLabel(format: .dateTime.month(.abbreviated).day())
                 }
             }
-            .chartYAxis {
-                AxisMarks() {
-                    AxisTick()
-                    AxisGridLine()
-                    AxisValueLabel()
-                }
-            }
         }
     }
-        
-}
-
-#Preview {
-    MonthChartView(items: .constant(sampleItems), selectedDay: .constant(Date()), scrollPosition: .constant(Date()), amountOnSelectedDay: .constant(0.0), totalAmount: .constant(0.0))
 }

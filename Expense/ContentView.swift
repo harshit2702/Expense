@@ -183,26 +183,164 @@ struct EntryView: View {
     }
     private func addItem() {
         withAnimation {
-            for i in 0..<(sampleItems.count){
-                modelContext.insert(sampleItems[i])
+            for i in 0..<(sampleItems.count) {
+                let item = sampleItems[i]
+                modelContext.insert(item)
+                
+                let date = item.date
+                let amount = item.amount
+                let category = item.category
+
+                print("Inserting item: \(category.rawValue) - \(amount) INR on \(date)")
+
+                let startOfDay = Calendar.current.startOfDay(for: date)
+
+                do {
+                    // Daily Summary
+                    if let dailySummary = try modelContext.fetch(FetchDescriptor<DailyCategorySummary>(predicate: #Predicate { $0.date == startOfDay && $0.category == category })).first {
+                        dailySummary.totalAmount += amount
+                        print("Updated daily summary: \(dailySummary.totalAmount)")
+                    } else {
+                        let newDailySummary = DailyCategorySummary(category: category, date: startOfDay, totalAmount: amount)
+                        modelContext.insert(newDailySummary)
+                        print("Inserted new daily summary: \(newDailySummary.totalAmount)")
+                    }
+
+                    // Monthly Summary
+                    let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
+                    if let monthlySummary = try modelContext.fetch(FetchDescriptor<MonthlyCategorySummary>(predicate: #Predicate { $0.date == startOfMonth && $0.category == category })).first {
+                        monthlySummary.totalAmount += amount
+                        print("Updated monthly summary: \(monthlySummary.totalAmount)")
+                    } else {
+                        let newMonthlySummary = MonthlyCategorySummary(category: category, date: startOfMonth, totalAmount: amount)
+                        modelContext.insert(newMonthlySummary)
+                        print("Inserted new monthly summary: \(newMonthlySummary.totalAmount)")
+                    }
+
+                    // Yearly Summary
+                    let startOfYear = Calendar.current.dateInterval(of: .year, for: date)!.start
+                    if let yearlySummary = try modelContext.fetch(FetchDescriptor<YearlyCategorySummary>(predicate: #Predicate { $0.date == startOfYear && $0.category == category })).first {
+                        yearlySummary.totalAmount += amount
+                        print("Updated yearly summary: \(yearlySummary.totalAmount)")
+                    } else {
+                        let newYearlySummary = YearlyCategorySummary(category: category, date: startOfYear, totalAmount: amount)
+                        modelContext.insert(newYearlySummary)
+                        print("Inserted new yearly summary: \(newYearlySummary.totalAmount)")
+                    }
+
+                    // Save context
+                    try modelContext.save()
+                    print("Context saved successfully")
+
+                } catch {
+                    print("Failed to save or fetch data: \(error)")
+                }
             }
         }
     }
 
+
     private func deleteItems(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                modelContext.delete(items[index])
+                let item = items[index]
+                let date = item.date
+                let category = item.category
+                let amount = item.amount
+                
+                // Delete the item
+                modelContext.delete(item)
+                
+                // Update Daily Summary
+                let startOfDay = Calendar.current.startOfDay(for: date)
+                do{
+                    if let dailySummary = try modelContext.fetch(FetchDescriptor<DailyCategorySummary>(predicate: #Predicate { $0.date == startOfDay && $0.category == category })).first {
+                        dailySummary.totalAmount -= amount
+                        if dailySummary.totalAmount <= 0 {
+                            modelContext.delete(dailySummary) // Remove if no more spending for the day
+                        }
+                    }
+                    
+                    // Update Monthly Summary
+                    let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
+                    if let monthlySummary = try modelContext.fetch(FetchDescriptor<MonthlyCategorySummary>(predicate: #Predicate { $0.date == startOfMonth && $0.category == category })).first {
+                        monthlySummary.totalAmount -= amount
+                        if monthlySummary.totalAmount <= 0 {
+                            modelContext.delete(monthlySummary)
+                        }
+                    }
+                    
+                    // Update Yearly Summary
+                    let startOfYear = Calendar.current.dateInterval(of: .year, for: date)!.start
+                    if let yearlySummary = try modelContext.fetch(FetchDescriptor<YearlyCategorySummary>(predicate: #Predicate { $0.date == startOfYear && $0.category == category })).first {
+                        yearlySummary.totalAmount -= amount
+                        if yearlySummary.totalAmount <= 0 {
+                            modelContext.delete(yearlySummary)
+                        }
+                    }
+                    
+                    // Save the context
+                    try modelContext.save()
+
+                }catch {
+                    // Handle the error appropriately
+                    print("Failed to save or fetch data: \(error)")
+                }
+
             }
         }
     }
+
     private func deleteAllItems() {
         withAnimation {
-            for item in items {
+            // Reduce amounts for DailyItems and MonthlyItems
+            for item in items{
+                let date = item.date
+                let category = item.category
+                let amount = item.amount
+                
+                // Delete the item
                 modelContext.delete(item)
+                
+                // Update Daily Summary
+                let startOfDay = Calendar.current.startOfDay(for: date)
+                do{
+                    if let dailySummary = try modelContext.fetch(FetchDescriptor<DailyCategorySummary>(predicate: #Predicate { $0.date == startOfDay && $0.category == category })).first {
+                        dailySummary.totalAmount -= amount
+                        if dailySummary.totalAmount <= 0 {
+                            modelContext.delete(dailySummary) // Remove if no more spending for the day
+                        }
+                    }
+                    
+                    // Update Monthly Summary
+                    let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
+                    if let monthlySummary = try modelContext.fetch(FetchDescriptor<MonthlyCategorySummary>(predicate: #Predicate { $0.date == startOfMonth && $0.category == category })).first {
+                        monthlySummary.totalAmount -= amount
+                        if monthlySummary.totalAmount <= 0 {
+                            modelContext.delete(monthlySummary)
+                        }
+                    }
+                    
+                    // Update Yearly Summary
+                    let startOfYear = Calendar.current.dateInterval(of: .year, for: date)!.start
+                    if let yearlySummary = try modelContext.fetch(FetchDescriptor<YearlyCategorySummary>(predicate: #Predicate { $0.date == startOfYear && $0.category == category })).first {
+                        yearlySummary.totalAmount -= amount
+                        if yearlySummary.totalAmount <= 0 {
+                            modelContext.delete(yearlySummary)
+                        }
+                    }
+                    
+                    // Save the context
+                    try modelContext.save()
+
+                }catch {
+                    // Handle the error appropriately
+                    print("Failed to save or fetch data: \(error)")
+                }
             }
         }
     }
+
 }
 struct AboutUsView: View {
     var body: some View {

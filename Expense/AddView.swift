@@ -74,9 +74,48 @@ struct AddView: View {
                         Button{
                             let newItem = Item(id: UUID(), date: date, amount: Double(amount) ?? 0.0, descriptions: description, category: selectedCategory)
                             modelContext.insert(newItem)
-                            isPresented = false
-                            
-                        }label: {
+                            var date = newItem.date
+                            var amount = newItem.amount
+                            var category = newItem.category
+
+                            let startOfDay = Calendar.current.startOfDay(for: date)
+
+                            do {
+                                // Fetch or update Daily Summary
+                                if let dailySummary = try modelContext.fetch(FetchDescriptor<DailyCategorySummary>(predicate: #Predicate { $0.date == startOfDay && $0.category == category })).first {
+                                    dailySummary.totalAmount += amount
+                                } else {
+                                    let newDailySummary = DailyCategorySummary(category: category, date: startOfDay, totalAmount: amount)
+                                    modelContext.insert(newDailySummary)
+                                }
+
+                                // Fetch or update Monthly Summary
+                                let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
+                                if let monthlySummary = try modelContext.fetch(FetchDescriptor<MonthlyCategorySummary>(predicate: #Predicate { $0.date == startOfMonth && $0.category == category })).first {
+                                    monthlySummary.totalAmount += amount
+                                } else {
+                                    let newMonthlySummary = MonthlyCategorySummary(category: category, date: startOfMonth, totalAmount: amount)
+                                    modelContext.insert(newMonthlySummary)
+                                }
+
+                                // Fetch or update Yearly Summary
+                                let startOfYear = Calendar.current.dateInterval(of: .year, for: date)!.start
+                                if let yearlySummary = try modelContext.fetch(FetchDescriptor<YearlyCategorySummary>(predicate: #Predicate { $0.date == startOfYear && $0.category == category })).first {
+                                    yearlySummary.totalAmount += amount
+                                } else {
+                                    let newYearlySummary = YearlyCategorySummary(category: category, date: startOfYear, totalAmount: amount)
+                                    modelContext.insert(newYearlySummary)
+                                }
+
+                                // Save the context
+                                try modelContext.save()
+
+                            } catch {
+                                // Handle the error appropriately
+                                print("Failed to save or fetch data: \(error)")
+                            }
+                        }
+label: {
                             ZStack{
                                 RoundedRectangle(cornerRadius: 10.0)
                                     .opacity(0.5)

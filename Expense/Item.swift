@@ -99,6 +99,52 @@ final class Item: Identifiable, Hashable {
     }
 }
 
+protocol CategorySummary {
+    var category: Categorys { get }
+    var date: Date { get }
+    var totalAmount: Double { get }
+}
+
+@Model
+final class DailyCategorySummary: CategorySummary {
+    var category: Categorys
+    var date: Date // Store only the day, with time set to 00:00
+    var totalAmount: Double
+    
+    init(category: Categorys, date: Date, totalAmount: Double) {
+        self.category = category
+        self.date = date
+        self.totalAmount = totalAmount
+    }
+}
+
+@Model
+final class MonthlyCategorySummary: CategorySummary {
+    var category: Categorys
+    var date: Date // Store only the day, with time set to 00:00
+    var totalAmount: Double
+    
+    init(category: Categorys, date: Date, totalAmount: Double) {
+        self.category = category
+        self.date = date
+        self.totalAmount = totalAmount
+    }
+}
+
+@Model
+final class YearlyCategorySummary: CategorySummary {
+    
+    var category: Categorys
+    var date: Date // Store the start of the year (e.g., Jan 1st)
+    var totalAmount: Double
+    
+    init(category: Categorys, date: Date, totalAmount: Double) {
+        self.category = category
+        self.date = date
+        self.totalAmount = totalAmount
+    }
+}
+
 //Sample Data
 
 // Helper function to generate dates separated by one day
