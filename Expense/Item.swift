@@ -160,9 +160,10 @@ func generateDates(count: Int, startingFrom startDate: Date) -> [Date] {
 
 // Generate a sample dataset of items
 let categories: [Categorys] = [
-    .breakfast, .groceries, .publicTransport, .rent, .insurance, .entertainment,
-    .carMaintenance, .books, .snacks, .flights, .internet, .fitness, .diningOut,
-    .taxi, .coffee, .personalCare, .clothing, .phone, .investment, .charity
+    .breakfast
+//    , .groceries, .publicTransport, .rent, .insurance, .entertainment,
+//    .carMaintenance, .books, .snacks, .flights, .internet, .fitness, .diningOut,
+//    .taxi, .coffee, .personalCare, .clothing, .phone, .investment, .charity
 ]
 
 let descriptions: [String] = [
@@ -173,7 +174,7 @@ let descriptions: [String] = [
     "Charity donation"
 ]
 
-let dates = generateDates(count: 1000, startingFrom: Date())
+let dates = generateDates(count: 100, startingFrom: Date())
 
 let sampleItems: [Item] = dates.map { date in
     let randomCategory = categories.randomElement()!

@@ -44,9 +44,21 @@ struct ChartView: View {
                         }
                         Text("\(scrollPosition.formatted(.dateTime.month().day())) - \(scrollPosition.addingTimeInterval(6 * 3600 * 24).formatted(.dateTime.month().day()))")
                     case .month:
-                        Text("Total: \(totalAmount ?? 0.0, specifier: "%.2f") in this month")
+                        if let selectedDay = selectedDay {
+                            Text("On \(selectedDay.formatted(.dateTime.year(.twoDigits).month(.abbreviated).day())) the amount spent is \(amountOnSelectedDay ?? 0.0, specifier: "%.2f")")
+                        } else {
+                            Text("Total Amount \(totalAmount ?? 0.0, specifier: "%.2f") during")
+                        }
+                    Text("\(scrollPosition.formatted(.dateTime.month(.abbreviated).day()))-\(scrollPosition.addingTimeInterval(29 * 3600 * 24).formatted(.dateTime.year(.twoDigits).month(.abbreviated).day()))")
                     case .year:
-                        Text("Total: \(totalAmount ?? 0.0, specifier: "%.2f") in this year")
+                        if let selectedMonth = selectedMonth {
+                            Text("On \(selectedMonth.formatted(.dateTime.year(.twoDigits).month(.abbreviated))) the amount spent is \(amountOnSelectedMonth ?? 0.0, specifier: "%.2f")")
+                        } else {
+                            Text("Total Amount \(totalAmount ?? 0.0, specifier: "%.2f") during")
+                        }
+                        let startOfYear = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: scrollPosition)) ?? Date()
+                    let endOfYear = Calendar.current.date(byAdding: DateComponents(year: 1,month: -1), to: startOfYear) ?? Date()
+                        Text("\(startOfYear.formatted(.dateTime.year(.twoDigits).month(.abbreviated)))-\(endOfYear.formatted(.dateTime.year(.twoDigits).month(.abbreviated)))")
                     }
                 }
                 .frame(width: geo.size.width * 0.3)
