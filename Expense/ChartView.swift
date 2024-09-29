@@ -95,35 +95,32 @@ struct ChartView: View {
 
             switch timeRange {
             case .week, .month:
-                // Fetch daily summaries for the week and month range
+                // Fetch all daily summaries
                 let dailySummaries = try modelContext.fetch(FetchDescriptor<DailyCategorySummary>())
                 
-                // Filter the daily summaries for the correct month or week
+                // If you only want to filter by category (no date filtering)
                 fetchedItems = dailySummaries.filter {
-                    // Calculate the start of the current month based on `scrollPosition`
-                    let startOfMonth = Calendar.current.dateInterval(of: .month, for: scrollPosition)?.start ?? Date()
-                    return $0.date >= startOfMonth && categories.contains($0.category)
+                    categories.contains($0.category)
                 }
 
             case .year:
-                // Fetch monthly summaries for the year range
+                // Fetch all monthly summaries
                 let monthlySummaries = try modelContext.fetch(FetchDescriptor<MonthlyCategorySummary>())
                 
+                // If you only want to filter by category (no date filtering)
                 fetchedItems = monthlySummaries.filter {
-                    // Calculate the start of the current year based on `scrollPosition`
-                    let startOfYear = Calendar.current.dateInterval(of: .year, for: scrollPosition)?.start ?? Date()
-                    return $0.date >= startOfYear && categories.contains($0.category)
+                    categories.contains($0.category)
                 }
             }
 
             // Debugging: Print the fetched items
-            print("Fetched summary items: \(fetchedItems)")
             return fetchedItems
         } catch {
             print("Error fetching summary items: \(error)")
             return []
         }
     }
+
 
 
 }

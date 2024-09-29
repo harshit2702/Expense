@@ -24,7 +24,6 @@ enum Categorys: String, Codable, CaseIterable, Identifiable,Comparable {
     case education
     case investment
     case savings
-    case travel
     case clothing
     case personalCare
     case subscriptions
@@ -36,11 +35,9 @@ enum Categorys: String, Codable, CaseIterable, Identifiable,Comparable {
     case childcare
     case debtRepayment
     case electronics
-    case diningOut
     case coffee
     case snacks
     case alcohol
-    case transportation
     case parking
     case taxi
     case publicTransport
@@ -55,8 +52,6 @@ enum Categorys: String, Codable, CaseIterable, Identifiable,Comparable {
     case sportingEvents
     case vacation
     case flights
-    case accommodation
-    case tours
     case shopping
     case homeImprovement
     case gardening
@@ -131,19 +126,6 @@ final class MonthlyCategorySummary: CategorySummary {
     }
 }
 
-@Model
-final class YearlyCategorySummary: CategorySummary {
-    
-    var category: Categorys
-    var date: Date // Store the start of the year (e.g., Jan 1st)
-    var totalAmount: Double
-    
-    init(category: Categorys, date: Date, totalAmount: Double) {
-        self.category = category
-        self.date = date
-        self.totalAmount = totalAmount
-    }
-}
 
 //Sample Data
 
@@ -160,10 +142,9 @@ func generateDates(count: Int, startingFrom startDate: Date) -> [Date] {
 
 // Generate a sample dataset of items
 let categories: [Categorys] = [
-    .breakfast
-//    , .groceries, .publicTransport, .rent, .insurance, .entertainment,
-//    .carMaintenance, .books, .snacks, .flights, .internet, .fitness, .diningOut,
-//    .taxi, .coffee, .personalCare, .clothing, .phone, .investment, .charity
+    .breakfast, .groceries, .publicTransport, .rent, .insurance, .entertainment,
+    .carMaintenance, .books, .snacks, .flights, .internet, .fitness,
+    .taxi, .coffee, .personalCare, .clothing, .phone, .investment, .charity
 ]
 
 let descriptions: [String] = [

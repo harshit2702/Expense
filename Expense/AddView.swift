@@ -15,8 +15,12 @@ struct AddView: View {
     @State var description = ""
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [Item]
+    @Query private var DCS: [DailyCategorySummary]
+    @Query private var MCS: [MonthlyCategorySummary]
     @Binding var isPresented: Bool
     @State private var selectedCategory: Categorys = .food
+    @State private var searchCategory = ""
+
 
     var body: some View {
         GeometryReader{ geo in
@@ -24,48 +28,55 @@ struct AddView: View {
                 List{
                     HStack{
                         VStack{
-//                            Section("Date and Time"){
-                                
-                                DatePicker(selection: $date, displayedComponents: [.date]){
-                                    Text("Date")
+                            TextField("00.00", text: $amount)
+                                .keyboardType(.numberPad)
+                                .onReceive(Just(amount)) { newValue in
+                                    let filtered = newValue.filter { "0123456789".contains($0) }
+                                    if filtered != newValue {
+                                        amount = filtered
+                                    }
                                 }
-                                .datePickerStyle(.graphical)
-                                DatePicker(selection: $date, displayedComponents: [.hourAndMinute]){
-                                }
-                                .datePickerStyle(.wheel)
-                                //                            .offset(x: -(geo.size.width / 4))
-//                            }
-                        }.frame(width: geo.size.width / 2)
-                        Spacer(minLength: 20)
-                        VStack{
-//                            Section("Category"){
-                                Picker("Please choose a category", selection: $selectedCategory) {
-                                                ForEach(Categorys.allCases) { category in
-                                                    Text(category.rawValue.capitalized).tag(category)
-                                                }
-                                            }
-                                            .pickerStyle(WheelPickerStyle()) // You can choose different picker styles if needed
-                                Text("You selected: \(selectedCategory.rawValue.capitalized)")
-                                    .font(.title3)
-//                            }
+                                .padding(.leading)
+                                .frame(minHeight: 40.0)
+                                .background(Color.gray.opacity(0.3))
+                                .clipShape(RoundedRectangle(cornerRadius: 10.0))
+                            TextField("Discription", text: $description)
+                                .padding(.leading)
+                                .frame(minHeight: 250)
+                                .background(Color.gray.opacity(0.3))
+                                .clipShape(RoundedRectangle(cornerRadius: 10.0))
+                            
                         }
+                        .frame(width: geo.size.width / 2)
+//                        Spacer(minLength: 20)
+                        VStack{
+                            TextField("Search Category", text: $searchCategory)
+                                                                .padding(10)
+                                                                .background(Color.gray.opacity(0.3))
+                                                                .clipShape(RoundedRectangle(cornerRadius: 10.0))
+                            Text("You selected: \(selectedCategory.rawValue.capitalized)")
+                                .font(.title3)
+                            
+                            Picker("Please choose a category", selection: $selectedCategory) {
+                                ForEach(searchResults) { category in
+                                                Text(category.rawValue.capitalized).tag(category)
+                                            }
+                                        }
+                                        .pickerStyle(WheelPickerStyle()) // You can choose different picker styles if needed
+                        }
+                        .padding()
+                        .background(Color.gray.opacity(0.3))
+                        .clipShape(RoundedRectangle(cornerRadius: 5.0))
                     }
-                    
-//                    Section("Amount"){
-                        TextField("00.00", text: $amount)
-                            .keyboardType(.numberPad)
-                            .onReceive(Just(amount)) { newValue in
-                                let filtered = newValue.filter { "0123456789".contains($0) }
-                                if filtered != newValue {
-                                    amount = filtered
-                                }
-                            }
-                            .frame(minHeight: 40)
-//                    }
-//                    Section("Discription"){
-                        TextField("Discription", text: $description)
-                            .frame(minHeight: 250)
-//                    }
+                    VStack{
+                        DatePicker(selection: $date, displayedComponents: [.date]){
+                            Text("Date")
+                        }
+                        .datePickerStyle(.graphical)
+                        DatePicker(selection: $date, displayedComponents: [.hourAndMinute]){
+                        }
+                        .datePickerStyle(.wheel)
+                    }
                 }
                 .padding()
                 VStack{
@@ -81,34 +92,26 @@ struct AddView: View {
                             let startOfDay = Calendar.current.startOfDay(for: date)
 
                             do {
-                                // Fetch or update Daily Summary
-                                if let dailySummary = try modelContext.fetch(FetchDescriptor<DailyCategorySummary>(predicate: #Predicate { $0.date == startOfDay && $0.category == category })).first {
+                                // Daily Summary
+                                if let dailySummary = DCS.first(where: { $0.date == startOfDay && $0.category == category }){
                                     dailySummary.totalAmount += amount
                                 } else {
                                     let newDailySummary = DailyCategorySummary(category: category, date: startOfDay, totalAmount: amount)
                                     modelContext.insert(newDailySummary)
                                 }
 
-                                // Fetch or update Monthly Summary
+                                // Monthly Summary - using MCS query results
                                 let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
-                                if let monthlySummary = try modelContext.fetch(FetchDescriptor<MonthlyCategorySummary>(predicate: #Predicate { $0.date == startOfMonth && $0.category == category })).first {
+                                if let monthlySummary = MCS.first(where: { $0.date == startOfMonth && $0.category == category }) {
                                     monthlySummary.totalAmount += amount
                                 } else {
                                     let newMonthlySummary = MonthlyCategorySummary(category: category, date: startOfMonth, totalAmount: amount)
                                     modelContext.insert(newMonthlySummary)
                                 }
 
-                                // Fetch or update Yearly Summary
-                                let startOfYear = Calendar.current.dateInterval(of: .year, for: date)!.start
-                                if let yearlySummary = try modelContext.fetch(FetchDescriptor<YearlyCategorySummary>(predicate: #Predicate { $0.date == startOfYear && $0.category == category })).first {
-                                    yearlySummary.totalAmount += amount
-                                } else {
-                                    let newYearlySummary = YearlyCategorySummary(category: category, date: startOfYear, totalAmount: amount)
-                                    modelContext.insert(newYearlySummary)
-                                }
-
-                                // Save the context
+                                // Save context
                                 try modelContext.save()
+                                print("Context saved successfully")
 
                             } catch {
                                 // Handle the error appropriately
@@ -135,6 +138,14 @@ label: {
             
         }
     }
+    
+    var searchResults: [Categorys] {
+        if searchCategory.isEmpty {
+            return Categorys.allCases
+            } else {
+                return Categorys.allCases.filter { $0.rawValue.localizedCaseInsensitiveContains(searchCategory) || $0.rawValue.localizedCaseInsensitiveContains("miscellaneous") }
+            }
+        }
 }
 
 #Preview {

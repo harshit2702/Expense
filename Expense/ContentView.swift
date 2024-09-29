@@ -193,7 +193,6 @@ struct EntryView: View {
                 let amount = item.amount
                 let category = item.category
 
-                print("Inserting item: \(category.rawValue) - \(amount) INR on \(date)")
 
                 let startOfDay = Calendar.current.startOfDay(for: date)
 
@@ -201,22 +200,18 @@ struct EntryView: View {
                     // Daily Summary
                     if let dailySummary = DCS.first(where: { $0.date == startOfDay && $0.category == category }){
                         dailySummary.totalAmount += amount
-                        print("Updated daily summary: \(dailySummary.totalAmount)")
                     } else {
                         let newDailySummary = DailyCategorySummary(category: category, date: startOfDay, totalAmount: amount)
                         modelContext.insert(newDailySummary)
-                        print("Inserted new daily summary: \(newDailySummary.totalAmount)")
                     }
 
                     // Monthly Summary - using MCS query results
                     let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
                     if let monthlySummary = MCS.first(where: { $0.date == startOfMonth && $0.category == category }) {
                         monthlySummary.totalAmount += amount
-                        print("Updated monthly summary from MCS: \(monthlySummary.totalAmount)")
                     } else {
                         let newMonthlySummary = MonthlyCategorySummary(category: category, date: startOfMonth, totalAmount: amount)
                         modelContext.insert(newMonthlySummary)
-                        print("Inserted new monthly summary: \(newMonthlySummary.totalAmount)")
                     }
 
                     // Save context
