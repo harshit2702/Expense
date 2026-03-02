@@ -8,6 +8,7 @@
 import SwiftUI
 import Combine
 import SwiftData
+import TipKit
 
 struct AddView: View {
     @State var date = Date()
@@ -18,8 +19,11 @@ struct AddView: View {
     @Query private var DCS: [DailyCategorySummary]
     @Query private var MCS: [MonthlyCategorySummary]
     @Binding var isPresented: Bool
-    @State private var selectedCategory: Categorys = .food
+    @State private var selectedCategory: ExpenseCategory = .food
     @State private var searchCategory = ""
+    @State private var showValidationAlert = false
+    @State private var validationMessage = ""
+    @State private var saveTrigger = false
 
 
     var body: some View {
@@ -40,7 +44,7 @@ struct AddView: View {
                                 .frame(minHeight: 40.0)
                                 .background(Color.gray.opacity(0.3))
                                 .clipShape(RoundedRectangle(cornerRadius: 10.0))
-                            TextField("Discription", text: $description)
+                            TextField("Description", text: $description)
                                 .padding(.leading)
                                 .frame(minHeight: 250)
                                 .background(Color.gray.opacity(0.3))
@@ -54,12 +58,12 @@ struct AddView: View {
                                                                 .padding(10)
                                                                 .background(Color.gray.opacity(0.3))
                                                                 .clipShape(RoundedRectangle(cornerRadius: 10.0))
-                            Text("You selected: \(selectedCategory.rawValue.capitalized)")
+                            Text("You selected: \(selectedCategory.displayName)")
                                 .font(.title3)
                             
                             Picker("Please choose a category", selection: $selectedCategory) {
                                 ForEach(searchResults) { category in
-                                                Text(category.rawValue.capitalized).tag(category)
+                                                Text(category.displayName).tag(category)
                                             }
                                         }
                                         .pickerStyle(WheelPickerStyle()) // You can choose different picker styles if needed
@@ -83,40 +87,23 @@ struct AddView: View {
                     HStack{
                         Spacer()
                         Button{
-                            let newItem = Item(id: UUID(), date: date, amount: Double(amount) ?? 0.0, descriptions: description, category: selectedCategory)
-                            modelContext.insert(newItem)
-                            var date = newItem.date
-                            var amount = newItem.amount
-                            var category = newItem.category
-
-                            let startOfDay = Calendar.current.startOfDay(for: date)
-
-                            do {
-                                // Daily Summary
-                                if let dailySummary = DCS.first(where: { $0.date == startOfDay && $0.category == category }){
-                                    dailySummary.totalAmount += amount
-                                } else {
-                                    let newDailySummary = DailyCategorySummary(category: category, date: startOfDay, totalAmount: amount)
-                                    modelContext.insert(newDailySummary)
-                                }
-
-                                // Monthly Summary - using MCS query results
-                                let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
-                                if let monthlySummary = MCS.first(where: { $0.date == startOfMonth && $0.category == category }) {
-                                    monthlySummary.totalAmount += amount
-                                } else {
-                                    let newMonthlySummary = MonthlyCategorySummary(category: category, date: startOfMonth, totalAmount: amount)
-                                    modelContext.insert(newMonthlySummary)
-                                }
-
-                                // Save context
-                                try modelContext.save()
-                                print("Context saved successfully")
-
-                            } catch {
-                                // Handle the error appropriately
-                                print("Failed to save or fetch data: \(error)")
+                            // Form validation
+                            guard let parsedAmount = Double(amount), parsedAmount > 0 else {
+                                validationMessage = "Please enter a valid amount greater than 0."
+                                showValidationAlert = true
+                                return
                             }
+                            
+                            let newItem = Item(id: UUID(), date: date, amount: parsedAmount, descriptions: description, category: selectedCategory)
+                            ExpenseDataManager.addItemAndUpdateSummaries(
+                                item: newItem,
+                                dailySummaries: DCS,
+                                monthlySummaries: MCS,
+                                context: modelContext
+                            )
+                            AddExpenseTip.hasAddedExpense = true
+                            saveTrigger.toggle()
+                            isPresented = false
                         }
 label: {
                             ZStack{
@@ -135,15 +122,20 @@ label: {
                 }
             }
             .offset(y: geo.size.height * 0.1)
-            
+            .alert("Invalid Input", isPresented: $showValidationAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(validationMessage)
+            }
+            .sensoryFeedback(.success, trigger: saveTrigger)
         }
     }
     
-    var searchResults: [Categorys] {
+    var searchResults: [ExpenseCategory] {
         if searchCategory.isEmpty {
-            return Categorys.allCases
+            return ExpenseCategory.allCases
             } else {
-                return Categorys.allCases.filter { $0.rawValue.localizedCaseInsensitiveContains(searchCategory) || $0.rawValue.localizedCaseInsensitiveContains("miscellaneous") }
+                return ExpenseCategory.allCases.filter { $0.rawValue.localizedCaseInsensitiveContains(searchCategory) || $0.rawValue.localizedCaseInsensitiveContains("miscellaneous") }
             }
         }
 }

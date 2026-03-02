@@ -44,20 +44,6 @@ struct DataView: View {
 }
 
 
-// Placeholder views for each section
-
-struct ComparisonView: View {
-    var body: some View {
-        Text("Comparison")
-    }
-}
-
-struct TrendsView: View {
-    var body: some View {
-        Text("Trends")
-    }
-}
-
 #Preview {
     DataView()
 }

@@ -7,12 +7,13 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 
 @main
 struct ExpenseApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,DailyCategorySummary.self, MonthlyCategorySummary.self
+            Item.self, DailyCategorySummary.self, MonthlyCategorySummary.self, Budget.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -22,6 +23,14 @@ struct ExpenseApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
+
+    init() {
+        // Configure TipKit — resets tips during development if needed
+        try? Tips.configure([
+            .displayFrequency(.immediate),
+            .datastoreLocation(.applicationDefault)
+        ])
+    }
 
     var body: some Scene {
         WindowGroup {

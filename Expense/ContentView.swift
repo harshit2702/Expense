@@ -8,27 +8,32 @@
 import SwiftUI
 import SwiftData
 import Combine
+import TipKit
 
-enum Section:String, Identifiable, CaseIterable {
+enum Section: String, Identifiable, CaseIterable {
     case entry
     case overview
     case data
+    case budget
     case aboutUs
     
     var id: String { self.rawValue }
     
     var name: String {
-            switch self {
-            case .entry: return "Entry"
-            case .overview: return "Overview"
-            case .data: return "Data"
-            case .aboutUs: return "About Us"
-            }
+        switch self {
+        case .entry: return "Entry"
+        case .overview: return "Overview"
+        case .data: return "Data"
+        case .budget: return "Budget"
+        case .aboutUs: return "About Us"
         }
+    }
 }
 
 struct AddButton: View {
     @Binding var isPresented: Bool
+    private let addExpenseTip = AddExpenseTip()
+
     var body: some View {
         VStack{
             Spacer()
@@ -41,11 +46,14 @@ struct AddButton: View {
                         Image(systemName: "plus")
                             .resizable()
                             .padding()
+                            .foregroundStyle(.primary)
                         RoundedRectangle(cornerRadius: 25.0)
-                            .fill(Color.secondary.opacity(0.5))
+                            .fill(.ultraThinMaterial)
+                            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
                     }
                     .frame(width: 100,height: 100)
                 }
+                .popoverTip(addExpenseTip, arrowEdge: .bottom)
             }
         }
         .padding()
@@ -57,8 +65,11 @@ struct SidebarLabel: View {
     var body: some View {
         ZStack{
             RoundedRectangle(cornerRadius: 10.0)
-                .fill(isSelected ? Color.blue :  Color.secondary)
-                .opacity(0.5)
+                .fill(isSelected ? Color.blue.opacity(0.6) : .clear)
+                .background(
+                    RoundedRectangle(cornerRadius: 10.0)
+                        .fill(.ultraThinMaterial)
+                )
             Text(label)
         }
     }
@@ -125,8 +136,11 @@ struct ContentView: View {
             case .data:
                 DataView()
                     .navigationTitle("Data")
+            case .budget:
+                BudgetView()
+                    .navigationTitle("Budget")
             case .aboutUs:
-                Text("About Us")
+                AboutUsView()
                     .navigationTitle("About Us")
             case .some(.overview):
                 OverviewView()
@@ -148,14 +162,29 @@ struct EntryView: View {
     @Query private var MCS: [MonthlyCategorySummary]
     @Binding var isPresented: Bool
     @Binding var selectedItem: Item?
+    @State private var searchText = ""
+    @State private var deleteTrigger = false
+    private let searchTip = SearchExpensesTip()
+    
+    var filteredItems: [Item] {
+        if searchText.isEmpty {
+            return items
+        }
+        return items.filter { item in
+            item.descriptions.localizedCaseInsensitiveContains(searchText) ||
+            item.category.rawValue.localizedCaseInsensitiveContains(searchText) ||
+            String(format: "%.2f", item.amount).contains(searchText)
+        }
+    }
+    
     var body: some View {
         List {
-            ForEach(items, id: \.id) { item in
+            TipView(searchTip)
+            ForEach(filteredItems, id: \.id) { item in
                 Button{
                     selectedItem = item
                 }label: {
-                    // Reuse SidebarLabel style for each entry
-                    SidebarLabel(label: "\(item.category.rawValue) - \(String(item.amount)) INR", isSelected: .constant(selectedItem?.id == item.id))
+                    SidebarLabel(label: "\(item.category.displayName) - \(String(format: "%.2f", item.amount)) \u{20B9}", isSelected: .constant(selectedItem?.id == item.id))
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -165,6 +194,13 @@ struct EntryView: View {
             }
         }
         .listStyle(.sidebar)
+        .searchable(text: $searchText, prompt: "Search expenses...")
+        .onChange(of: searchText) { _, newValue in
+            if !newValue.isEmpty {
+                SearchExpensesTip.hasSearched = true
+            }
+        }
+        .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.5), trigger: deleteTrigger)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 EditButton()
@@ -187,40 +223,12 @@ struct EntryView: View {
         withAnimation {
             for i in 0..<(sampleItems.count) {
                 let item = sampleItems[i]
-                modelContext.insert(item)
-                
-                let date = item.date
-                let amount = item.amount
-                let category = item.category
-
-
-                let startOfDay = Calendar.current.startOfDay(for: date)
-
-                do {
-                    // Daily Summary
-                    if let dailySummary = DCS.first(where: { $0.date == startOfDay && $0.category == category }){
-                        dailySummary.totalAmount += amount
-                    } else {
-                        let newDailySummary = DailyCategorySummary(category: category, date: startOfDay, totalAmount: amount)
-                        modelContext.insert(newDailySummary)
-                    }
-
-                    // Monthly Summary - using MCS query results
-                    let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
-                    if let monthlySummary = MCS.first(where: { $0.date == startOfMonth && $0.category == category }) {
-                        monthlySummary.totalAmount += amount
-                    } else {
-                        let newMonthlySummary = MonthlyCategorySummary(category: category, date: startOfMonth, totalAmount: amount)
-                        modelContext.insert(newMonthlySummary)
-                    }
-
-                    // Save context
-                    try modelContext.save()
-                    print("Context saved successfully")
-
-                } catch {
-                    print("Failed to save or fetch data: \(error)")
-                }
+                ExpenseDataManager.addItemAndUpdateSummaries(
+                    item: item,
+                    dailySummaries: DCS,
+                    monthlySummaries: MCS,
+                    context: modelContext
+                )
             }
         }
     }
@@ -229,88 +237,117 @@ struct EntryView: View {
     private func deleteItems(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                let item = items[index]
-                let date = item.date
-                let category = item.category
-                let amount = item.amount
-                
-                // Delete the item
-                modelContext.delete(item)
-                
-                // Update Daily Summary
-                let startOfDay = Calendar.current.startOfDay(for: date)
-                do{
-                    if let dailySummary = DCS.first(where: { $0.date == startOfDay && $0.category == category }){
-                        dailySummary.totalAmount -= amount
-                        if dailySummary.totalAmount <= 0 {
-                            modelContext.delete(dailySummary) // Remove if no more spending for the day
-                        }
-                    }
-                    
-                    // Update Monthly Summary
-                    let startOfMonth = Calendar.current.dateInterval(of: .month, for: date)!.start
-                    if let monthlySummary = MCS.first(where: { $0.date == startOfMonth && $0.category == category }){
-                        monthlySummary.totalAmount -= amount
-                        if monthlySummary.totalAmount <= 0 {
-                            modelContext.delete(monthlySummary)
-                        }
-                    }
-                    // Save the context
-                    try modelContext.save()
-
-                }catch {
-                    // Handle the error appropriately
-                    print("Failed to save or fetch data: \(error)")
-                }
-
+                let item = filteredItems[index]
+                ExpenseDataManager.deleteItemAndUpdateSummaries(
+                    item: item,
+                    dailySummaries: DCS,
+                    monthlySummaries: MCS,
+                    context: modelContext
+                )
             }
+            deleteTrigger.toggle()
         }
     }
 
     private func deleteAllItems() {
         withAnimation {
-            // Reduce amounts for DailyItems and MonthlyItems
-            for item in items{
-                // Delete the item
-                modelContext.delete(item)
-                do{
-                    // Save the context
-                    try modelContext.save()
-                }catch {
-                    // Handle the error appropriately
-                    print("Failed to save or fetch data: \(error)")
-                }
-            }
-            for item in DCS{
-                // Delete the item
-                modelContext.delete(item)
-                do{
-                    // Save the context
-                    try modelContext.save()
-                }catch {
-                    // Handle the error appropriately
-                    print("Failed to save or fetch data: \(error)")
-                }
-            }
-            for item in MCS{
-                // Delete the item
-                modelContext.delete(item)
-                do{
-                    // Save the context
-                    try modelContext.save()
-                }catch {
-                    // Handle the error appropriately
-                    print("Failed to save or fetch data: \(error)")
-                }
-            }
-            
+            ExpenseDataManager.deleteAllData(
+                items: items,
+                dailySummaries: DCS,
+                monthlySummaries: MCS,
+                context: modelContext
+            )
+            deleteTrigger.toggle()
         }
     }
 
 }
 struct AboutUsView: View {
     var body: some View {
-        Text("About Us View")
+        ScrollView {
+            VStack(spacing: 24) {
+                Image(systemName: "indianrupeesign.circle.fill")
+                    .resizable()
+                    .frame(width: 80, height: 80)
+                    .foregroundStyle(.blue)
+                
+                Text("Expense Tracker")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Text("Version 1.2.0 — iOS 26 Ready")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 16) {
+                    AboutRow(icon: "person.fill", title: "Developer", detail: "Harshit Agarwal")
+                    AboutRow(icon: "swift", title: "Built With", detail: "SwiftUI & SwiftData")
+                    AboutRow(icon: "chart.bar.fill", title: "Charts", detail: "Swift Charts")
+                    AboutRow(icon: "lightbulb.fill", title: "TipKit", detail: "Onboarding Tips")
+                    AboutRow(icon: "iphone", title: "Platform", detail: "iOS / iPadOS / macOS")
+                    AboutRow(icon: "calendar", title: "Started", detail: "July 2024")
+                }
+                .padding()
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Features")
+                        .font(.headline)
+                    FeatureRow(icon: "plus.circle.fill", text: "Track daily expenses with 60+ categories")
+                    FeatureRow(icon: "chart.pie.fill", text: "Visual spending overview with pie charts")
+                    FeatureRow(icon: "chart.bar.fill", text: "Weekly, monthly, and yearly bar charts")
+                    FeatureRow(icon: "arrow.left.arrow.right", text: "Compare spending across periods")
+                    FeatureRow(icon: "chart.line.uptrend.xyaxis", text: "Track spending trends over time")
+                    FeatureRow(icon: "target", text: "Set and monitor category budgets")
+                    FeatureRow(icon: "magnifyingglass", text: "Search and filter expenses")
+                    FeatureRow(icon: "hand.tap.fill", text: "Haptic sensory feedback on actions")
+                    FeatureRow(icon: "lightbulb.fill", text: "TipKit onboarding tips")
+                }
+                .padding()
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .padding()
+        }
+    }
+}
+
+struct AboutRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .frame(width: 24)
+                .foregroundStyle(.blue)
+            Text(title)
+                .fontWeight(.medium)
+            Spacer()
+            Text(detail)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+struct FeatureRow: View {
+    let icon: String
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top) {
+            Image(systemName: icon)
+                .foregroundStyle(.blue)
+                .frame(width: 20)
+            Text(text)
+                .font(.subheadline)
+        }
     }
 }
 

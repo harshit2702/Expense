@@ -29,7 +29,7 @@ struct ItemInfo: View {
                         .overlay(
                             HStack{
                                 Spacer()
-                                Text("Amount: $\(item.amount, specifier: "%.2f")")
+                                Text("Amount: \u{20B9}\(item.amount, specifier: "%.2f")")
                                     .font(.largeTitle)
                                 Spacer()
                             }
@@ -54,5 +54,5 @@ struct ItemInfo: View {
 }
 
 #Preview {
-    ItemInfo(item: Item(id: UUID(), date: Date(), amount: 10.0, descriptions: "Food is an essential aspect of human life, providing not only the necessary nutrients for survival but also a source of immense pleasure and cultural significance. Across the globe, diverse cuisines reflect the unique traditions, histories, and environments of different regions. From the aromatic spices of Indian curries to the delicate flavors of Japanese sushi, each dish tells a story. Food also serves as a medium for social interaction, bringing people together for shared experiences and celebrations. Beyond its sensory and social pleasures, the importance of food extends to health and well-being, emphasizing the need for balanced diets that support physical and mental health. The culinary arts continue to evolve, integrating new ingredients and techniques while honoring time-honored traditions. ", category: Categorys.food))
+    ItemInfo(item: Item(id: UUID(), date: Date(), amount: 10.0, descriptions: "Food is an essential aspect of human life.", category: .food))
 }

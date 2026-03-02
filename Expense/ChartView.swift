@@ -16,7 +16,7 @@ enum TimeRange: String, CaseIterable, Identifiable {
 
 struct ChartView: View {
     @Environment(\.modelContext) private var modelContext
-    @State var categories: [Categorys] = [.food]  // User-selected categories
+    @State var categories: [ExpenseCategory] = [.food]  // User-selected categories
     @State private var selectedTimeRange: TimeRange = .month
     @State var selectedDay: Date?
     @State var selectedMonth: Date?

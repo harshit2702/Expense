@@ -8,17 +8,19 @@
 import SwiftUI
 import SwiftData
 import Charts
+import TipKit
 
 struct OverviewView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
+    private let overviewTip = OverviewTip()
     
-    var categoryAmount: [(category: Categorys, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
+    var categoryAmount: [(category: ExpenseCategory, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
         let filteredItems = items.filter { item in
                 item.date >= startDate && item.date <= endDate
             }
             
-            let amountDict = filteredItems.reduce(into: [Categorys: Double]()) { result, item in
+            let amountDict = filteredItems.reduce(into: [ExpenseCategory: Double]()) { result, item in
                 let category = item.category
                 result[category, default: 0] += item.amount
             }
@@ -51,8 +53,11 @@ struct OverviewView: View {
     var body: some View {
         VStack {
             VStack {
-                Text("\(String(describing: selectedCategory))")
-                Text("Amount Spend: \(String(format: "%.2f", selectedPrice))")
+                TipView(overviewTip)
+                    .padding(.horizontal)
+                
+                Text(selectedCategory)
+                Text("Amount Spent: \u{20B9}\(String(format: "%.2f", selectedPrice))")
                 
                 Picker("Date Range", selection: $dateRangeType) {
                     ForEach(DateRangeType.allCases) { range in
@@ -61,7 +66,7 @@ struct OverviewView: View {
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
-                .onChange(of: dateRangeType) { _ in
+                .onChange(of: dateRangeType) { _, _ in
                     updateDateRange()
                 }
                 
@@ -80,7 +85,7 @@ struct OverviewView: View {
                         innerRadius: .ratio(0.314),
                         angularInset: 2.0
                     )
-                    .foregroundStyle(by: .value("Amount", entry.amount))
+                    .foregroundStyle(by: .value("Category", entry.category.displayName))
                 }
                 .chartAngleSelection(value: $selectedCategoryAmount)
                 .padding()
@@ -88,21 +93,18 @@ struct OverviewView: View {
                 }
             Rectangle()
                 .frame(height: 2.0)
-            ChartView(categories: Categorys.allCases)
+            ChartView(categories: ExpenseCategory.allCases)
             Rectangle()
                 .frame(height: 2.0)
         }
-        .onChange(of: selectedCategoryAmount) { newValue in
+        .onChange(of: selectedCategoryAmount) { _, newValue in
             if let selectedAmount = newValue {
-                print("Selected Amount: \(selectedAmount)")
                 if let categoryEntry = categoryAmount.first(where: { $0.cumulativeAmountSt <= selectedAmount && selectedAmount < $0.cumulativeAmountEnd }) {
-                    selectedCategory = categoryEntry.category.rawValue
-                    selectedPrice = categoryEntry.amount // Assuming amount is the price
-                    print("Selected Category: \(selectedCategory ?? "None"), Price: \(selectedPrice)")
+                    selectedCategory = categoryEntry.category.displayName
+                    selectedPrice = categoryEntry.amount
                 } else {
                     selectedCategory = "None"
                     selectedPrice = 0.0
-                    print("No matching category found")
                 }
             }
         }

@@ -8,7 +8,7 @@
 import Foundation
 import SwiftData
 
-enum Categorys: String, Codable, CaseIterable, Identifiable,Comparable {
+enum ExpenseCategory: String, Codable, CaseIterable, Identifiable, Comparable {
     case food
     case transport
     case breakfast
@@ -68,11 +68,17 @@ enum Categorys: String, Codable, CaseIterable, Identifiable,Comparable {
     case fines
     case miscellaneous
     
-    var id: String { self.rawValue}
+    var id: String { self.rawValue }
     
-    static func < (lhs: Categorys, rhs: Categorys) -> Bool {
-           return lhs.rawValue < rhs.rawValue
-       }
+    var displayName: String {
+        rawValue
+            .replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
+            .capitalized
+    }
+    
+    static func < (lhs: ExpenseCategory, rhs: ExpenseCategory) -> Bool {
+        return lhs.rawValue < rhs.rawValue
+    }
 }
 
 
@@ -82,10 +88,10 @@ final class Item: Identifiable, Hashable {
     var date: Date
     var amount: Double
     var descriptions: String
-    var category: Categorys
+    var category: ExpenseCategory
     
     
-    init(id: UUID = UUID(), date: Date = Date(), amount: Double = 10.0, descriptions: String = "Text", category: Categorys = Categorys.breakfast) {
+    init(id: UUID = UUID(), date: Date = Date(), amount: Double = 10.0, descriptions: String = "Text", category: ExpenseCategory = .breakfast) {
         self.id = id
         self.date = date
         self.amount = amount
@@ -95,18 +101,18 @@ final class Item: Identifiable, Hashable {
 }
 
 protocol CategorySummary {
-    var category: Categorys { get }
+    var category: ExpenseCategory { get }
     var date: Date { get }
     var totalAmount: Double { get }
 }
 
 @Model
 final class DailyCategorySummary: CategorySummary {
-    var category: Categorys
-    var date: Date // Store only the day, with time set to 00:00
+    var category: ExpenseCategory
+    var date: Date
     var totalAmount: Double
     
-    init(category: Categorys, date: Date, totalAmount: Double) {
+    init(category: ExpenseCategory, date: Date, totalAmount: Double) {
         self.category = category
         self.date = date
         self.totalAmount = totalAmount
@@ -115,11 +121,11 @@ final class DailyCategorySummary: CategorySummary {
 
 @Model
 final class MonthlyCategorySummary: CategorySummary {
-    var category: Categorys
-    var date: Date // Store only the day, with time set to 00:00
+    var category: ExpenseCategory
+    var date: Date
     var totalAmount: Double
     
-    init(category: Categorys, date: Date, totalAmount: Double) {
+    init(category: ExpenseCategory, date: Date, totalAmount: Double) {
         self.category = category
         self.date = date
         self.totalAmount = totalAmount
@@ -141,7 +147,7 @@ func generateDates(count: Int, startingFrom startDate: Date) -> [Date] {
 }
 
 // Generate a sample dataset of items
-let categories: [Categorys] = [
+let categories: [ExpenseCategory] = [
     .breakfast, .groceries, .publicTransport, .rent, .insurance, .entertainment,
     .carMaintenance, .books, .snacks, .flights, .internet, .fitness,
     .taxi, .coffee, .personalCare, .clothing, .phone, .investment, .charity
@@ -164,4 +170,20 @@ let sampleItems: [Item] = dates.map { date in
 }
 
 
+// MARK: - Budget Model
+
+@Model
+final class Budget: Identifiable {
+    var id: UUID
+    var category: ExpenseCategory
+    var monthlyLimit: Double
+    var createdDate: Date
+    
+    init(id: UUID = UUID(), category: ExpenseCategory, monthlyLimit: Double, createdDate: Date = Date()) {
+        self.id = id
+        self.category = category
+        self.monthlyLimit = monthlyLimit
+        self.createdDate = createdDate
+    }
+}
 
