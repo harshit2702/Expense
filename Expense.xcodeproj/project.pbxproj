@@ -13,6 +13,8 @@
 		B1DDDD022D03100000000003 /* TrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1DDDD012D03100000000003 /* TrendsView.swift */; };
 		B1EEEE022D03200000000004 /* ExpenseTips.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1EEEE012D03200000000004 /* ExpenseTips.swift */; };
 		B1FFFF022D03200000000005 /* ExpenseWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFFF012D03200000000005 /* ExpenseWidgets.swift */; };
+		B1AAAA022D04000000000006 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1AAAA012D04000000000006 /* HomeView.swift */; };
+		B1AAAA042D04000000000007 /* FinancialHealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1AAAA032D04000000000007 /* FinancialHealthView.swift */; };
 		B126C1D02C673BDD0019BB23 /* DataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B126C1CF2C673BDD0019BB23 /* DataView.swift */; };
 		B12E3DF42C44F3A800AC4F6C /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12E3DF32C44F3A800AC4F6C /* ChartView.swift */; };
 		B13457AE2C413C5A00FF8192 /* AddView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13457AD2C413C5A00FF8192 /* AddView.swift */; };
@@ -35,6 +37,8 @@
 		B1DDDD012D03100000000003 /* TrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsView.swift; sourceTree = "<group>"; };
 		B1EEEE012D03200000000004 /* ExpenseTips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseTips.swift; sourceTree = "<group>"; };
 		B1FFFF012D03200000000005 /* ExpenseWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseWidgets.swift; sourceTree = "<group>"; };
+		B1AAAA012D04000000000006 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		B1AAAA032D04000000000007 /* FinancialHealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialHealthView.swift; sourceTree = "<group>"; };
 		B126C1CF2C673BDD0019BB23 /* DataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataView.swift; sourceTree = "<group>"; };
 		B12E3DF32C44F3A800AC4F6C /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
 		B13457AD2C413C5A00FF8192 /* AddView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddView.swift; sourceTree = "<group>"; };
@@ -98,6 +102,8 @@
 				B1DDDD012D03100000000003 /* TrendsView.swift */,
 				B1EEEE012D03200000000004 /* ExpenseTips.swift */,
 				B1FFFF012D03200000000005 /* ExpenseWidgets.swift */,
+				B1AAAA012D04000000000006 /* HomeView.swift */,
+				B1AAAA032D04000000000007 /* FinancialHealthView.swift */,
 				B14E8EA32C396505002A703D /* Assets.xcassets */,
 				B14E8EA52C396505002A703D /* Preview Content */,
 			);
@@ -197,6 +203,8 @@
 				B1DDDD022D03100000000003 /* TrendsView.swift in Sources */,
 				B1EEEE022D03200000000004 /* ExpenseTips.swift in Sources */,
 				B1FFFF022D03200000000005 /* ExpenseWidgets.swift in Sources */,
+				B1AAAA022D04000000000006 /* HomeView.swift in Sources */,
+				B1AAAA042D04000000000007 /* FinancialHealthView.swift in Sources */,
 				B17225782CA44CCA003A733A /* OverView.swift in Sources */,
 				B12E3DF42C44F3A800AC4F6C /* ChartView.swift in Sources */,
 			);

@@ -81,6 +81,13 @@ struct BudgetView: View {
                         }
                     }
                 }
+
+                // MARK: Smart Coaching Nudges
+                SwiftUI.Section("Coaching") {
+                    ForEach(coachingNudges, id: \.text) { nudge in
+                        InsightRow(icon: nudge.icon, color: nudge.color, text: nudge.text, detail: nudge.detail)
+                    }
+                }
             }
         }
         .toolbar {
@@ -121,6 +128,58 @@ struct BudgetView: View {
         }
         try? modelContext.save()
         deleteTrigger.toggle()
+    }
+
+    // MARK: - Coaching Nudges
+
+    private var coachingNudges: [(icon: String, color: Color, text: String, detail: String)] {
+        var nudges: [(icon: String, color: Color, text: String, detail: String)] = []
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let dayOfMonth = cal.component(.day, from: today)
+        let daysInMonth = cal.range(of: .day, in: .month, for: today)?.count ?? 30
+        let daysLeft = max(daysInMonth - dayOfMonth, 1)
+        let fractionElapsed = Double(dayOfMonth) / Double(daysInMonth)
+
+        for budget in budgets {
+            let spent = currentMonthSpending(for: budget.category)
+            let usedPct = budget.monthlyLimit > 0 ? spent / budget.monthlyLimit : 0
+            let remaining = budget.monthlyLimit - spent
+
+            if usedPct > 1.0 {
+                // Already over — suggest recovery
+                nudges.append((
+                    icon: "exclamationmark.triangle.fill", color: .red,
+                    text: "\(budget.category.displayName) over by ₹\(String(format: "%.0f", -remaining))",
+                    detail: "Avoid further spending in this category"
+                ))
+            } else if usedPct > fractionElapsed + 0.15 {
+                // Spending faster than expected
+                let dailyBudget = remaining / Double(daysLeft)
+                nudges.append((
+                    icon: "gauge.with.dots.needle.67percent", color: .orange,
+                    text: "\(budget.category.displayName) at \(String(format: "%.0f", usedPct * 100))% with \(daysLeft) days left",
+                    detail: "Limit to ₹\(String(format: "%.0f", dailyBudget))/day to stay on track"
+                ))
+            } else if usedPct < fractionElapsed * 0.5 && spent > 0 {
+                // Under budget — positive reinforcement
+                nudges.append((
+                    icon: "hand.thumbsup.fill", color: .green,
+                    text: "\(budget.category.displayName) well under budget",
+                    detail: "₹\(String(format: "%.0f", remaining)) remaining — great job!"
+                ))
+            }
+        }
+
+        if nudges.isEmpty && !budgets.isEmpty {
+            nudges.append((
+                icon: "checkmark.seal.fill", color: .green,
+                text: "All budgets on track",
+                detail: "Keep it up! You're spending responsibly."
+            ))
+        }
+
+        return nudges
     }
 }
 

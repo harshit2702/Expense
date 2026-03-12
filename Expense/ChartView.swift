@@ -16,7 +16,7 @@ enum TimeRange: String, CaseIterable, Identifiable {
 
 struct ChartView: View {
     @Environment(\.modelContext) private var modelContext
-    @State var categories: [ExpenseCategory] = [.food]  // User-selected categories
+    @State var categories: [ExpenseCategory] = [.food]
     @State private var selectedTimeRange: TimeRange = .month
     @State var selectedDay: Date?
     @State var selectedMonth: Date?
@@ -25,66 +25,58 @@ struct ChartView: View {
     @State var totalAmount: Double?
     @State var amountOnSelectedMonth: Double?
 
-    // Pre-aggregated summary based on the time range
     var summaryItems: [CategorySummary] {
         fetchSummaryItems(for: selectedTimeRange)
     }
 
     var body: some View {
-        GeometryReader { geo in
-            HStack {
-                VStack {
-                    // Displaying amount info based on the selected date or month
-                    switch selectedTimeRange {
-                    case .week:
-                        if let selectedDay = selectedDay {
-                            Text("On \(selectedDay.formatted(.dateTime.year().month().day())) spent: \(amountOnSelectedDay ?? 0.0, specifier: "%.2f")")
-                        } else {
-                            Text("Total: \(totalAmount ?? 0.0, specifier: "%.2f") during this week")
-                        }
-                        Text("\(scrollPosition.formatted(.dateTime.month().day())) - \(scrollPosition.addingTimeInterval(6 * 3600 * 24).formatted(.dateTime.month().day()))")
-                    case .month:
-                        if let selectedDay = selectedDay {
-                            Text("On \(selectedDay.formatted(.dateTime.year(.twoDigits).month(.abbreviated).day())) the amount spent is \(amountOnSelectedDay ?? 0.0, specifier: "%.2f")")
-                        } else {
-                            Text("Total Amount \(totalAmount ?? 0.0, specifier: "%.2f") during")
-                        }
-                    Text("\(scrollPosition.formatted(.dateTime.month(.abbreviated).day()))-\(scrollPosition.addingTimeInterval(29 * 3600 * 24).formatted(.dateTime.year(.twoDigits).month(.abbreviated).day()))")
-                    case .year:
-                        if let selectedMonth = selectedMonth {
-                            Text("On \(selectedMonth.formatted(.dateTime.year(.twoDigits).month(.abbreviated))) the amount spent is \(amountOnSelectedMonth ?? 0.0, specifier: "%.2f")")
-                        } else {
-                            Text("Total Amount \(totalAmount ?? 0.0, specifier: "%.2f") during")
-                        }
-                        let startOfYear = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: scrollPosition)) ?? Date()
-                    let endOfYear = Calendar.current.date(byAdding: DateComponents(year: 1,month: -1), to: startOfYear) ?? Date()
-                        Text("\(startOfYear.formatted(.dateTime.year(.twoDigits).month(.abbreviated)))-\(endOfYear.formatted(.dateTime.year(.twoDigits).month(.abbreviated)))")
-                    }
-                }
-                .frame(width: geo.size.width * 0.3)
+        VStack(spacing: 12) {
+            // Time range picker
+            Picker(selection: $selectedTimeRange) {
+                Text("Week").tag(TimeRange.week)
+                Text("Month").tag(TimeRange.month)
+                Text("Year").tag(TimeRange.year)
+            } label: { EmptyView() }
+            .pickerStyle(.segmented)
 
-                VStack {
-                    Picker(selection: $selectedTimeRange) {
-                        Text("Week").tag(TimeRange.week)
-                        Text("Month").tag(TimeRange.month)
-                        Text("Year").tag(TimeRange.year)
-                    } label: {
-                        EmptyView()
-                    }
-                    .pickerStyle(.segmented)
+            // Summary text
+            summaryLabel
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
+            // Chart
+            switch selectedTimeRange {
+            case .week:
+                WeekChartView(items: summaryItems, selectedDay: $selectedDay, scrollPosition: $scrollPosition, amountOnSelectedDay: $amountOnSelectedDay, totalAmount: $totalAmount)
+            case .month:
+                MonthChartView(items: summaryItems, selectedDay: $selectedDay, scrollPosition: $scrollPosition, amountOnSelectedDay: $amountOnSelectedDay, totalAmount: $totalAmount)
+            case .year:
+                YearChartView(items: summaryItems, selectedMonth: $selectedMonth, scrollPosition: $scrollPosition, amountOnSelectedMonth: $amountOnSelectedMonth, totalAmount: $totalAmount)
+            }
+        }
+    }
 
-                    switch selectedTimeRange {
-                    case .week:
-                        WeekChartView(items: summaryItems, selectedDay: $selectedDay, scrollPosition: $scrollPosition, amountOnSelectedDay: $amountOnSelectedDay, totalAmount: $totalAmount)
-                    case .month:
-
-                        MonthChartView(items: summaryItems, selectedDay: $selectedDay, scrollPosition: $scrollPosition, amountOnSelectedDay: $amountOnSelectedDay, totalAmount: $totalAmount)
-                    case .year:
-                        YearChartView(items: summaryItems, selectedMonth: $selectedMonth, scrollPosition: $scrollPosition, amountOnSelectedMonth: $amountOnSelectedMonth, totalAmount: $totalAmount)
-                    }
-                }
-                .padding()
+    @ViewBuilder
+    private var summaryLabel: some View {
+        switch selectedTimeRange {
+        case .week:
+            if let selectedDay, let amt = amountOnSelectedDay {
+                Text("\(selectedDay.formatted(.dateTime.month(.abbreviated).day())): ₹\(String(format: "%.0f", amt))")
+            } else {
+                Text("Total: ₹\(String(format: "%.0f", totalAmount ?? 0))")
+            }
+        case .month:
+            if let selectedDay, let amt = amountOnSelectedDay {
+                Text("\(selectedDay.formatted(.dateTime.month(.abbreviated).day())): ₹\(String(format: "%.0f", amt))")
+            } else {
+                Text("Total: ₹\(String(format: "%.0f", totalAmount ?? 0))")
+            }
+        case .year:
+            if let selectedMonth, let amt = amountOnSelectedMonth {
+                Text("\(selectedMonth.formatted(.dateTime.year().month(.abbreviated))): ₹\(String(format: "%.0f", amt))")
+            } else {
+                Text("Total: ₹\(String(format: "%.0f", totalAmount ?? 0))")
             }
         }
     }
@@ -92,38 +84,22 @@ struct ChartView: View {
     func fetchSummaryItems(for timeRange: TimeRange) -> [CategorySummary] {
         do {
             var fetchedItems: [CategorySummary] = []
-
             switch timeRange {
             case .week, .month:
-                // Fetch all daily summaries
                 let dailySummaries = try modelContext.fetch(FetchDescriptor<DailyCategorySummary>())
-                
-                // If you only want to filter by category (no date filtering)
-                fetchedItems = dailySummaries.filter {
-                    categories.contains($0.category)
-                }
-
+                fetchedItems = dailySummaries.filter { categories.contains($0.category) }
             case .year:
-                // Fetch all monthly summaries
                 let monthlySummaries = try modelContext.fetch(FetchDescriptor<MonthlyCategorySummary>())
-                
-                // If you only want to filter by category (no date filtering)
-                fetchedItems = monthlySummaries.filter {
-                    categories.contains($0.category)
-                }
+                fetchedItems = monthlySummaries.filter { categories.contains($0.category) }
             }
-
-            // Debugging: Print the fetched items
             return fetchedItems
         } catch {
             print("Error fetching summary items: \(error)")
             return []
         }
     }
-
-
-
 }
+
 #Preview {
     ChartView()
 }

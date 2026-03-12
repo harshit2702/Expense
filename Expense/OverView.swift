@@ -13,103 +13,255 @@ import TipKit
 struct OverviewView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
+    @Query private var budgets: [Budget]
     private let overviewTip = OverviewTip()
-    
-    var categoryAmount: [(category: ExpenseCategory, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
-        let filteredItems = items.filter { item in
-                item.date >= startDate && item.date <= endDate
-            }
-            
-            let amountDict = filteredItems.reduce(into: [ExpenseCategory: Double]()) { result, item in
-                let category = item.category
-                result[category, default: 0] += item.amount
-            }
-            
-            let sortedCategories = amountDict.keys.sorted()
-            var cumulativeSum: Double = 0
-            return sortedCategories.map { category in
-                let amount = amountDict[category]!
-                cumulativeSum += amount
-                return (category, amount, cumulativeSum - amount, cumulativeSum)
-            }
-        }
-    
+
     @State private var selectedCategoryAmount: Double?
-    @State private var selectedCategory: String = "None"
-    @State private var selectedPrice: Double = 0.0 // Assuming price is a Double
+    @State private var selectedCategory: String = ""
+    @State private var selectedPrice: Double = 0.0
+    @State private var dateRangeType: DateRangeType = .last30Days
     @State private var startDate = Date()
     @State private var endDate = Date()
-    @State private var dateRangeType: DateRangeType = .last7Days
 
-    enum DateRangeType: String, CaseIterable, Identifiable{
-        case last7Days = "Last 7 Days"
-        case last14Days = "Last 14 Days"
-        case last30Days = "Last 30 Days"
+    enum DateRangeType: String, CaseIterable, Identifiable {
+        case last7Days = "7 Days"
+        case last14Days = "14 Days"
+        case last30Days = "30 Days"
         case custom = "Custom"
-        
         var id: String { self.rawValue }
     }
 
+    // MARK: - Computed Data
+
+    private var filteredItems: [Item] {
+        items.filter { $0.date >= startDate && $0.date <= endDate }
+    }
+
+    private var totalSpent: Double { filteredItems.reduce(0) { $0 + $1.amount } }
+
+    private var categoryAmount: [(category: ExpenseCategory, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
+        let amountDict = filteredItems.reduce(into: [ExpenseCategory: Double]()) { $0[$1.category, default: 0] += $1.amount }
+        let sorted = amountDict.keys.sorted()
+        var cum: Double = 0
+        return sorted.map { cat in
+            let amt = amountDict[cat]!
+            cum += amt
+            return (cat, amt, cum - amt, cum)
+        }
+    }
+
+    // Previous period for comparison
+    private var previousPeriodTotal: Double {
+        let duration = endDate.timeIntervalSince(startDate)
+        let prevStart = startDate.addingTimeInterval(-duration)
+        let prevEnd = startDate
+        return items.filter { $0.date >= prevStart && $0.date < prevEnd }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var periodChange: Double {
+        guard previousPeriodTotal > 0 else { return 0 }
+        return ((totalSpent - previousPeriodTotal) / previousPeriodTotal) * 100
+    }
+
+    // Top overspending category vs budget
+    private var topOverspender: (category: String, overBy: Double)? {
+        let startOfMonth = Calendar.current.dateInterval(of: .month, for: Date())!.start
+        for budget in budgets {
+            let spent = items.filter { $0.category == budget.category && $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
+            if spent > budget.monthlyLimit {
+                return (budget.category.displayName, spent - budget.monthlyLimit)
+            }
+        }
+        return nil
+    }
+
+    // Budget risk this month
+    private var budgetUsedPercent: Double {
+        let totalBudget = budgets.reduce(0) { $0 + $1.monthlyLimit }
+        guard totalBudget > 0 else { return 0 }
+        let startOfMonth = Calendar.current.dateInterval(of: .month, for: Date())!.start
+        let monthSpent = items.filter { $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
+        return (monthSpent / totalBudget) * 100
+    }
+
+    // MARK: - Body
+
     var body: some View {
-        VStack {
-            VStack {
+        ScrollView {
+            VStack(spacing: 20) {
                 TipView(overviewTip)
                     .padding(.horizontal)
-                
-                Text(selectedCategory)
-                Text("Amount Spent: \u{20B9}\(String(format: "%.2f", selectedPrice))")
-                
-                Picker("Date Range", selection: $dateRangeType) {
+
+                // Period Picker
+                Picker("Period", selection: $dateRangeType) {
                     ForEach(DateRangeType.allCases) { range in
                         Text(range.rawValue).tag(range)
                     }
                 }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding()
-                .onChange(of: dateRangeType) { _, _ in
-                    updateDateRange()
-                }
-                
-                // Show Date Pickers only for Custom Date Range
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .onChange(of: dateRangeType) { _, _ in updateDateRange() }
+
                 if dateRangeType == .custom {
-                    VStack {
-                        DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
-                        DatePicker("End Date", selection: $endDate, displayedComponents: .date)
+                    HStack {
+                        DatePicker("From", selection: $startDate, displayedComponents: .date)
+                        DatePicker("To", selection: $endDate, displayedComponents: .date)
+                    }
+                    .padding(.horizontal)
+                }
+
+                // MARK: Summary Cards (3 decisions)
+                VStack(spacing: 12) {
+                    // Total + change
+                    HStack(spacing: 12) {
+                        SummaryCard(title: "Period Total", amount: totalSpent, color: .blue)
+                        SummaryCard(title: "vs Previous", amount: periodChange, color: periodChange > 0 ? .red : .green, isPercent: true)
+                    }
+
+                    HStack(spacing: 12) {
+                        // Budget risk
+                        VStack(spacing: 4) {
+                            Text("Budget Used")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if budgets.isEmpty {
+                                Text("—")
+                                    .font(.title3)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("\(String(format: "%.0f", budgetUsedPercent))%")
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(budgetUsedPercent > 100 ? .red : budgetUsedPercent > 80 ? .orange : .green)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                        // Top overspender
+                        VStack(spacing: 4) {
+                            Text("Top Overspend")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let over = topOverspender {
+                                Text(over.category)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text("+₹\(String(format: "%.0f", over.overBy))")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            } else {
+                                Text("None")
+                                    .font(.title3)
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+                .padding(.horizontal)
+
+                // MARK: Ring Chart
+                if !categoryAmount.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Category Breakdown")
+                            .font(.headline)
+
+                        if !selectedCategory.isEmpty {
+                            HStack {
+                                Text(selectedCategory)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Text("₹\(String(format: "%.0f", selectedPrice))")
+                                    .fontWeight(.bold)
+                            }
+                            .font(.subheadline)
+                            .padding(8)
+                            .background(.blue.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+
+                        Chart(categoryAmount, id: \.category) { entry in
+                            SectorMark(
+                                angle: .value("Category", entry.amount),
+                                innerRadius: .ratio(0.6),
+                                angularInset: 1.5
+                            )
+                            .foregroundStyle(by: .value("Category", entry.category.displayName))
+                            .cornerRadius(4)
+                        }
+                        .chartAngleSelection(value: $selectedCategoryAmount)
+                        .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
+                        .frame(height: 220)
                     }
                     .padding()
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal)
                 }
-                
-                Chart(categoryAmount, id: \.category) { entry in
-                    SectorMark(
-                        angle: .value("Category", entry.amount),
-                        innerRadius: .ratio(0.314),
-                        angularInset: 2.0
-                    )
-                    .foregroundStyle(by: .value("Category", entry.category.displayName))
+
+                // MARK: Insight Cards
+                VStack(spacing: 10) {
+                    if let top = categoryAmount.first {
+                        let pct = totalSpent > 0 ? (top.amount / totalSpent * 100) : 0
+                        InsightRow(icon: "flame.fill", color: .orange,
+                                   text: "\(top.category.displayName) is \(String(format: "%.0f", pct))% of spending",
+                                   detail: "₹\(String(format: "%.0f", top.amount)) in this period")
+                    }
+                    if periodChange != 0 {
+                        let dir = periodChange > 0 ? "more" : "less"
+                        InsightRow(icon: periodChange > 0 ? "arrow.up.right" : "arrow.down.right",
+                                   color: periodChange > 0 ? .red : .green,
+                                   text: "\(String(format: "%.0f", abs(periodChange)))% \(dir) than previous period",
+                                   detail: "Previous: ₹\(String(format: "%.0f", previousPeriodTotal))")
+                    }
+                    if budgetUsedPercent > 80 && !budgets.isEmpty {
+                        InsightRow(icon: "exclamationmark.triangle.fill", color: .orange,
+                                   text: "Budget \(String(format: "%.0f", budgetUsedPercent))% used",
+                                   detail: "Consider reducing discretionary spending")
+                    }
                 }
-                .chartAngleSelection(value: $selectedCategoryAmount)
                 .padding()
-                    
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal)
+
+                // MARK: Historical Charts
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Spending Over Time")
+                        .font(.headline)
+                    ChartView(categories: ExpenseCategory.allCases)
+                        .frame(height: 250)
                 }
-            Rectangle()
-                .frame(height: 2.0)
-            ChartView(categories: ExpenseCategory.allCases)
-            Rectangle()
-                .frame(height: 2.0)
+                .padding()
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal)
+                .padding(.bottom, 24)
+            }
+            .padding(.top, 8)
         }
+        .onAppear { updateDateRange() }
         .onChange(of: selectedCategoryAmount) { _, newValue in
             if let selectedAmount = newValue {
-                if let categoryEntry = categoryAmount.first(where: { $0.cumulativeAmountSt <= selectedAmount && selectedAmount < $0.cumulativeAmountEnd }) {
-                    selectedCategory = categoryEntry.category.displayName
-                    selectedPrice = categoryEntry.amount
+                if let entry = categoryAmount.first(where: { $0.cumulativeAmountSt <= selectedAmount && selectedAmount < $0.cumulativeAmountEnd }) {
+                    selectedCategory = entry.category.displayName
+                    selectedPrice = entry.amount
                 } else {
-                    selectedCategory = "None"
+                    selectedCategory = ""
                     selectedPrice = 0.0
                 }
             }
         }
     }
-    
+
+    // MARK: - Helpers
+
     private func updateDateRange() {
         let calendar = Calendar.current
         switch dateRangeType {
@@ -123,7 +275,6 @@ struct OverviewView: View {
             startDate = calendar.date(byAdding: .day, value: -29, to: Date()) ?? Date()
             endDate = Date()
         case .custom:
-            // Do nothing, custom dates are set by the user
             break
         }
     }

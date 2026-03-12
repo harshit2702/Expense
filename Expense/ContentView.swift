@@ -10,240 +10,233 @@ import SwiftData
 import Combine
 import TipKit
 
-enum Section: String, Identifiable, CaseIterable {
-    case entry
-    case overview
-    case data
-    case budget
-    case aboutUs
-    
-    var id: String { self.rawValue }
-    
-    var name: String {
-        switch self {
-        case .entry: return "Entry"
-        case .overview: return "Overview"
-        case .data: return "Data"
-        case .budget: return "Budget"
-        case .aboutUs: return "About Us"
-        }
-    }
-}
-
-struct AddButton: View {
-    @Binding var isPresented: Bool
-    private let addExpenseTip = AddExpenseTip()
-
-    var body: some View {
-        VStack{
-            Spacer()
-            HStack{
-                Spacer()
-                Button{
-                    isPresented = true
-                }label: {
-                    ZStack{
-                        Image(systemName: "plus")
-                            .resizable()
-                            .padding()
-                            .foregroundStyle(.primary)
-                        RoundedRectangle(cornerRadius: 25.0)
-                            .fill(.ultraThinMaterial)
-                            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
-                    }
-                    .frame(width: 100,height: 100)
-                }
-                .popoverTip(addExpenseTip, arrowEdge: .bottom)
-            }
-        }
-        .padding()
-    }
-}
-struct SidebarLabel: View {
-    @State var label: String
-    @Binding var isSelected: Bool
-    var body: some View {
-        ZStack{
-            RoundedRectangle(cornerRadius: 10.0)
-                .fill(isSelected ? Color.blue.opacity(0.6) : .clear)
-                .background(
-                    RoundedRectangle(cornerRadius: 10.0)
-                        .fill(.ultraThinMaterial)
-                )
-            Text(label)
-        }
-    }
-}
+// MARK: - Adaptive Root View (TabView on iPhone, SplitView on iPad)
 
 struct ContentView: View {
-    
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    var body: some View {
+        if sizeClass == .compact {
+            CompactTabView()
+        } else {
+            RegularSplitView()
+        }
+    }
+}
+
+// MARK: - iPhone: Tab-based Navigation
+
+struct CompactTabView: View {
+    @State private var selectedTab = 0
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            NavigationStack {
+                HomeView()
+            }
+            .tabItem {
+                Label("Home", systemImage: "house.fill")
+            }
+            .tag(0)
+
+            NavigationStack {
+                EntryListView()
+            }
+            .tabItem {
+                Label("Entries", systemImage: "list.bullet.rectangle.fill")
+            }
+            .tag(1)
+
+            NavigationStack {
+                DataView()
+            }
+            .tabItem {
+                Label("Analytics", systemImage: "chart.bar.fill")
+            }
+            .tag(2)
+
+            NavigationStack {
+                BudgetView()
+                    .navigationTitle("Budget")
+            }
+            .tabItem {
+                Label("Budget", systemImage: "target")
+            }
+            .tag(3)
+
+            NavigationStack {
+                AboutUsView()
+                    .navigationTitle("About")
+            }
+            .tabItem {
+                Label("About", systemImage: "info.circle")
+            }
+            .tag(4)
+        }
+        .tint(.blue)
+    }
+}
+
+// MARK: - iPad/Mac: Split View (preserves existing behaviour)
+
+enum AppSection: String, Identifiable, CaseIterable {
+    case home, entry, data, budget, aboutUs
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .home: return "Home"
+        case .entry: return "Entries"
+        case .data: return "Analytics"
+        case .budget: return "Budget"
+        case .aboutUs: return "About"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .home: return "house.fill"
+        case .entry: return "list.bullet.rectangle.fill"
+        case .data: return "chart.bar.fill"
+        case .budget: return "target"
+        case .aboutUs: return "info.circle"
+        }
+    }
+}
+
+struct RegularSplitView: View {
+    @State private var selectedSection: AppSection? = .home
     @State private var isPresented = false
-    @State private var selectedSection: Section? = .entry
     @State private var selectedItem: Item?
-    @State private var isEntrySidebarVisible: Bool = true // Control sidebar visibility
 
     var body: some View {
         NavigationSplitView {
-            // Main Sidebar
-            List(Section.allCases, id: \.self, selection: $selectedSection) { section in
-                SidebarLabel(label: section.name, isSelected: .constant(selectedSection == section))
+            List(AppSection.allCases, id: \.self, selection: $selectedSection) { section in
+                Label(section.name, systemImage: section.icon)
             }
-            .frame(minWidth: 300, idealWidth: 350, maxWidth: 400)
             .listStyle(.sidebar)
+            .navigationTitle("Expense")
         } detail: {
             switch selectedSection {
+            case .home:
+                HomeView()
+                    .navigationTitle("Home")
             case .entry:
-                ZStack {
-                    HStack {
-                        if isEntrySidebarVisible {
-                            // Sidebar for Entries
-                            EntryView(isPresented: $isPresented, selectedItem: $selectedItem)
-                                .frame(minWidth: 300, idealWidth: 350, maxWidth: 400) // Set max width for the sidebar
-                                .transition(.move(edge: .leading)) // Animate sidebar appearance/disappearance
-                        }
-                        
-                        // Detail View for Entry
-                        VStack {
-                            if let item = selectedItem {
-                                ItemInfo(item: item)
-                                    .id(item.id)
-                                    .padding()
-                            } else {
-                                Text("Select an entry from the sidebar")
-                                    .foregroundColor(.secondary)
-                                    .padding()
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    
-                    AddButton(isPresented: $isPresented)
-                }
-                .toolbar {
-                    // Add a button to toggle the sidebar
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button(action: {
-                            withAnimation {
-                                isEntrySidebarVisible.toggle()
-                            }
-                        }) {
-                            Image(systemName: isEntrySidebarVisible ? "chevron.left" : "chevron.right")
-                        }
+                HStack(spacing: 0) {
+                    EntryListView()
+                        .frame(minWidth: 300, idealWidth: 350, maxWidth: 400)
+                    Divider()
+                    if let item = selectedItem {
+                        ItemInfo(item: item)
+                            .id(item.id)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        ContentUnavailableView("Select an Entry", systemImage: "doc.text", description: Text("Pick an expense from the list to see details."))
+                            .frame(maxWidth: .infinity)
                     }
                 }
-                .navigationTitle("Entry")
-                
+                .navigationTitle("Entries")
             case .data:
                 DataView()
-                    .navigationTitle("Data")
+                    .navigationTitle("Analytics")
             case .budget:
                 BudgetView()
                     .navigationTitle("Budget")
             case .aboutUs:
                 AboutUsView()
-                    .navigationTitle("About Us")
-            case .some(.overview):
-                OverviewView()
-                    .navigationTitle("Overview")
+                    .navigationTitle("About")
             case .none:
-                Text("Select a section")
+                ContentUnavailableView("Select a Section", systemImage: "sidebar.left", description: Text("Choose a section from the sidebar."))
             }
         }
     }
 }
 
+// MARK: - Entry List (Push-detail on iPhone)
 
-
-
-struct EntryView: View {
+struct EntryListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @Query private var DCS: [DailyCategorySummary]
     @Query private var MCS: [MonthlyCategorySummary]
-    @Binding var isPresented: Bool
-    @Binding var selectedItem: Item?
+    @State private var isPresented = false
     @State private var searchText = ""
     @State private var deleteTrigger = false
     private let searchTip = SearchExpensesTip()
-    
+
     var filteredItems: [Item] {
-        if searchText.isEmpty {
-            return items
-        }
+        if searchText.isEmpty { return items }
         return items.filter { item in
             item.descriptions.localizedCaseInsensitiveContains(searchText) ||
             item.category.rawValue.localizedCaseInsensitiveContains(searchText) ||
             String(format: "%.2f", item.amount).contains(searchText)
         }
     }
-    
+
+    /// Group entries by day for section headers
+    private var groupedByDay: [(date: Date, items: [Item])] {
+        let grouped = Dictionary(grouping: filteredItems) { Calendar.current.startOfDay(for: $0.date) }
+        return grouped.sorted { $0.key > $1.key }.map { (date: $0.key, items: $0.value) }
+    }
+
     var body: some View {
         List {
             TipView(searchTip)
-            ForEach(filteredItems, id: \.id) { item in
-                Button{
-                    selectedItem = item
-                }label: {
-                    SidebarLabel(label: "\(item.category.displayName) - \(String(format: "%.2f", item.amount)) \u{20B9}", isSelected: .constant(selectedItem?.id == item.id))
-                        .frame(maxWidth: .infinity)
+
+            ForEach(groupedByDay, id: \.date) { group in
+                Section {
+                    ForEach(group.items, id: \.id) { item in
+                        NavigationLink(value: item) {
+                            EntryRow(item: item)
+                        }
+                    }
+                    .onDelete { offsets in deleteItems(from: group.items, at: offsets) }
+                } header: {
+                    Text(group.date.formatted(.dateTime.month(.abbreviated).day().year()))
                 }
             }
-            .onDelete(perform: deleteItems)
-            .sheet(isPresented: $isPresented) {
-                AddView(isPresented: $isPresented)
-            }
         }
-        .listStyle(.sidebar)
-        .searchable(text: $searchText, prompt: "Search expenses...")
+        .listStyle(.insetGrouped)
+        .navigationTitle("Entries")
+        .navigationDestination(for: Item.self) { item in
+            ItemInfo(item: item)
+        }
+        .searchable(text: $searchText, prompt: "Search expenses…")
         .onChange(of: searchText) { _, newValue in
-            if !newValue.isEmpty {
-                SearchExpensesTip.hasSearched = true
-            }
+            if !newValue.isEmpty { SearchExpensesTip.hasSearched = true }
         }
         .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.5), trigger: deleteTrigger)
         .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) { EditButton() }
             ToolbarItem(placement: .navigationBarTrailing) {
-                EditButton()
+                Button { deleteAllItems() } label: { Label("Delete All", systemImage: "trash") }
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: deleteAllItems) {
-                        Label("Delete All", systemImage: "trash")
-                    }
-                }
-            ToolbarItem {
-                Button(action: addItem) {
-                    Label("Add Item", systemImage: "plus")
-                }
+                Button { isPresented = true } label: { Label("Add Expense", systemImage: "plus") }
             }
         }
-        .navigationTitle("Entries")
-
+        .sheet(isPresented: $isPresented) {
+            AddView(isPresented: $isPresented)
+        }
     }
-    private func addItem() {
+
+    // MARK: Actions
+
+    private func addSampleItems() {
         withAnimation {
-            for i in 0..<(sampleItems.count) {
-                let item = sampleItems[i]
-                ExpenseDataManager.addItemAndUpdateSummaries(
-                    item: item,
-                    dailySummaries: DCS,
-                    monthlySummaries: MCS,
-                    context: modelContext
-                )
+            for item in sampleItems {
+                ExpenseDataManager.addItemAndUpdateSummaries(item: item, dailySummaries: DCS, monthlySummaries: MCS, context: modelContext)
             }
         }
     }
 
-
-    private func deleteItems(offsets: IndexSet) {
+    private func deleteItems(from groupItems: [Item], at offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                let item = filteredItems[index]
-                ExpenseDataManager.deleteItemAndUpdateSummaries(
-                    item: item,
-                    dailySummaries: DCS,
-                    monthlySummaries: MCS,
-                    context: modelContext
-                )
+                let item = groupItems[index]
+                ExpenseDataManager.deleteItemAndUpdateSummaries(item: item, dailySummaries: DCS, monthlySummaries: MCS, context: modelContext)
             }
             deleteTrigger.toggle()
         }
@@ -251,16 +244,83 @@ struct EntryView: View {
 
     private func deleteAllItems() {
         withAnimation {
-            ExpenseDataManager.deleteAllData(
-                items: items,
-                dailySummaries: DCS,
-                monthlySummaries: MCS,
-                context: modelContext
-            )
+            ExpenseDataManager.deleteAllData(items: items, dailySummaries: DCS, monthlySummaries: MCS, context: modelContext)
             deleteTrigger.toggle()
         }
     }
+}
 
+// MARK: - Entry Row (clean, informative)
+
+struct EntryRow: View {
+    let item: Item
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: iconForCategory(item.category))
+                .font(.title3)
+                .foregroundStyle(.blue)
+                .frame(width: 36, height: 36)
+                .background(.blue.opacity(0.1))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.category.displayName)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                if !item.descriptions.isEmpty {
+                    Text(item.descriptions)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("₹\(String(format: "%.0f", item.amount))")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(item.date.formatted(.dateTime.hour().minute()))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func iconForCategory(_ category: ExpenseCategory) -> String {
+        switch category {
+        case .food, .breakfast, .lunch, .dinner: return "fork.knife"
+        case .transport, .publicTransport, .taxi: return "bus.fill"
+        case .groceries: return "cart.fill"
+        case .utilities, .internet, .phone, .cable: return "bolt.fill"
+        case .rent, .mortgage: return "house.fill"
+        case .entertainment, .movies, .music, .theater, .concerts, .sportingEvents: return "film.fill"
+        case .healthcare, .insurance: return "heart.fill"
+        case .education, .books: return "book.fill"
+        case .fitness: return "figure.run"
+        case .clothing, .personalCare: return "tshirt.fill"
+        case .coffee: return "cup.and.saucer.fill"
+        case .snacks: return "takeoutbag.and.cup.and.straw.fill"
+        case .fuel, .carMaintenance, .parking: return "car.fill"
+        case .flights, .vacation: return "airplane"
+        case .shopping: return "bag.fill"
+        case .investment, .savings: return "chart.line.uptrend.xyaxis"
+        case .subscriptions: return "repeat"
+        case .gifts, .charity: return "gift.fill"
+        case .pets: return "pawprint.fill"
+        case .alcohol: return "wineglass.fill"
+        case .hobbies: return "puzzlepiece.fill"
+        case .homeImprovement, .gardening, .furniture, .decorations, .householdSupplies: return "hammer.fill"
+        case .childcare: return "figure.2.and.child.holdinghands"
+        case .debtRepayment, .creditCard, .bankingFees: return "creditcard.fill"
+        case .electronics: return "desktopcomputer"
+        case .businessExpenses, .legalFees, .taxes, .fines: return "briefcase.fill"
+        case .miscellaneous: return "ellipsis.circle.fill"
+        }
+    }
 }
 struct AboutUsView: View {
     var body: some View {
@@ -275,7 +335,7 @@ struct AboutUsView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 
-                Text("Version 1.2.0 — iOS 26 Ready")
+                Text("Version 2.0.0 — Redesigned for iPhone")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 
@@ -298,15 +358,19 @@ struct AboutUsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Features")
                         .font(.headline)
-                    FeatureRow(icon: "plus.circle.fill", text: "Track daily expenses with 60+ categories")
-                    FeatureRow(icon: "chart.pie.fill", text: "Visual spending overview with pie charts")
+                    FeatureRow(icon: "house.fill", text: "Beautiful home dashboard with hero summary")
+                    FeatureRow(icon: "plus.circle.fill", text: "Quick expense entry with 60+ categories")
+                    FeatureRow(icon: "chart.pie.fill", text: "Ring chart category breakdown")
                     FeatureRow(icon: "chart.bar.fill", text: "Weekly, monthly, and yearly bar charts")
-                    FeatureRow(icon: "arrow.left.arrow.right", text: "Compare spending across periods")
-                    FeatureRow(icon: "chart.line.uptrend.xyaxis", text: "Track spending trends over time")
-                    FeatureRow(icon: "target", text: "Set and monitor category budgets")
+                    FeatureRow(icon: "arrow.left.arrow.right", text: "Side-by-side period comparison")
+                    FeatureRow(icon: "chart.line.uptrend.xyaxis", text: "Spending trends with moving average")
+                    FeatureRow(icon: "heart.text.square.fill", text: "Financial health score (0–100)")
+                    FeatureRow(icon: "target", text: "Category budgets with coaching nudges")
+                    FeatureRow(icon: "lightbulb.fill", text: "Smart insight cards & recommendations")
                     FeatureRow(icon: "magnifyingglass", text: "Search and filter expenses")
-                    FeatureRow(icon: "hand.tap.fill", text: "Haptic sensory feedback on actions")
-                    FeatureRow(icon: "lightbulb.fill", text: "TipKit onboarding tips")
+                    FeatureRow(icon: "iphone", text: "iPhone-optimized TabView navigation")
+                    FeatureRow(icon: "hand.tap.fill", text: "Haptic sensory feedback")
+                    FeatureRow(icon: "sparkles", text: "TipKit onboarding tips")
                 }
                 .padding()
                 .background(.ultraThinMaterial)

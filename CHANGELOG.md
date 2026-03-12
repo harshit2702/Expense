@@ -328,3 +328,104 @@ Uses `@State private var saveTrigger`/`deleteTrigger` booleans toggled on action
 | `TrendsView.swift` | Spending trends (**TipKit + glass StatCard**) | ✅ Updated |
 | `ExpenseTips.swift` | **NEW** — TipKit tips (6 tips for onboarding & feature discovery) | ✅ Added |
 | `ExpenseWidgets.swift` | **NEW** — WidgetKit widget scaffolding (Home Screen + Control Center) | ✅ Added |
+
+---
+
+## Phase 3 — iPhone UX Redesign & Feature Expansion (March 2, 2026)
+
+### Design Goals
+- iPhone-first experience with intuitive navigation
+- Decision-focused analytics (not just data display)
+- Beautiful, clean visual hierarchy with consistent card styling
+- Progressive disclosure: summary first, deep analytics on demand
+- Budget coaching and financial health scoring
+
+### Changes Made
+
+#### 1. Adaptive Navigation: TabView for iPhone, SplitView for iPad
+**File:** `ContentView.swift`
+**What:** Replaced the single `NavigationSplitView` (desktop-first) with an adaptive layout. On compact size class (iPhone), uses a `TabView` with 5 tabs: Home, Entries, Analytics, Budget, About. On regular size class (iPad/Mac), keeps the `NavigationSplitView` sidebar.
+**Why:** The sidebar-based navigation was unusable on iPhone — it collapsed awkwardly and required multiple taps for basic actions.
+
+#### 2. New Home Dashboard
+**File Created:** `HomeView.swift`
+**What:** Beautiful iPhone-first home screen with:
+- Hero summary card: Today's spend, This Month total with % change vs last month, Budget remaining with risk level
+- Ring chart: Top 8 categories for current month with tap-to-highlight
+- 7-Day bar chart: Simple weekly spending visualization
+- Insight strip: Top category, peak spend day, daily budget remaining, month-over-month change
+- Quick action buttons: Add Expense, All Entries, Budgets
+
+#### 3. Entry List Redesign (Push-Detail)
+**File:** `ContentView.swift`
+**What:** Replaced the side-by-side list/detail layout with an `EntryListView` that groups entries by day with section headers. Each entry uses a clean `EntryRow` with category icon, name, description, amount, and time. Tapping pushes to the `ItemInfo` detail screen via `NavigationLink`.
+**Why:** The old side-by-side layout was forced on iPhone, making entries tiny and detail views cramped.
+
+#### 4. Clean Add Expense Form
+**File:** `AddView.swift`
+**What:** Complete rebuild from a two-column GeometryReader-based layout to a standard single-column `Form` with proper sections: Amount (with ₹ prefix), Category (searchable + `.navigationLink` picker), Date & Time (separate pickers), Description (expandable text field). Added proper Cancel/Save navigation bar buttons.
+**Why:** The old layout was desktop-oriented: two columns that didn't fit iPhone screens, a tiny floating save button with arbitrary offsets, and a WheelPicker that was unusable on phone.
+
+#### 5. Clean Expense Detail
+**File:** `ItemInfo.swift`
+**What:** Removed the garish yellow background and thick border. Replaced with: amount hero section (large rounded number), structured detail rows (date, time, category, description) in a material card, and category spending history chart.
+**Why:** The old design used `.background(Color.yellow.opacity(0.3))` and `.border(Color.secondary, width: 5)` which looked noisy and unprofessional.
+
+#### 6. OverviewView with Decision-Focused Insights
+**File:** `OverView.swift`
+**What:** Complete redesign as a ScrollView with:
+- Period picker (7/14/30 days + custom)
+- Summary cards: Period total, % change vs previous period, budget used %, top overspend category
+- Ring chart with interactive selection and selected-category callout
+- Insight cards: Top category %, period change, budget warning
+- Historical chart (time-series) embedded at bottom
+**Why:** The old view was just a pie chart + raw chart stacked with Rectangle separators — no context, no decisions, no actionable takeaways.
+
+#### 7. Simplified ChartView
+**File:** `ChartView.swift`
+**What:** Removed the side-by-side `HStack` with `GeometryReader` that put summary text in 30% width and chart in 70%. Now uses a simple vertical stack: segmented picker → clean summary label → chart. Summary text is concise and secondary.
+**Why:** The old HStack layout forced text and chart side-by-side, which was cramped on iPhone and produced long, hard-to-read sentences.
+
+#### 8. DataView with Proper Navigation
+**File:** `DataView.swift`
+**What:** Replaced the nested `NavigationView` (which caused double nav bars on iPhone) with a `List` using `NavigationLink(value:)` and `.navigationDestination`. Added Financial Health as a 4th analytics section. Each section now has an icon, title, and description.
+**Why:** The nested NavigationView was the #1 cause of double-navigation-bar bugs on iPhone.
+
+#### 9. Budget Coaching Nudges
+**File:** `BudgetView.swift`
+**What:** Added a "Coaching" section that generates smart nudges based on budget vs actual spending:
+- Over budget: "Avoid further spending in this category"
+- Spending too fast: "Limit to ₹X/day to stay on track" (based on days remaining)
+- Under budget: Positive reinforcement "Great job!"
+- All on track: "Keep it up!"
+
+#### 10. Financial Health Score
+**File Created:** `FinancialHealthView.swift`
+**What:** A 0–100 financial health score computed from three components:
+- Budget Adherence (0–40 pts): How well you stay within budgets
+- Spend Stability (0–30 pts): Coefficient of variation of daily spending (lower = better)
+- Month vs Last Month (0–30 pts): Spending less than last month = higher score
+Includes: animated score ring, breakdown bars, and personalized recommendations.
+
+#### 11. Visual Consistency
+**All files**
+**What:**
+- Consistent `.ultraThinMaterial` card backgrounds with `RoundedRectangle(cornerRadius: 16)` for major cards, `12` for sub-cards
+- Consistent typography: `.headline` for section titles, `.subheadline` for content, `.caption` for metadata
+- Reusable components: `InsightRow`, `QuickActionButton`, `QuickActionLabel`, `DetailRow`, `SummaryCard`, `StatCard`, `ScoreBreakdownRow`
+- Consistent spacing: 20pt between major sections, 12pt within sections
+- Category icons in `EntryRow` via `iconForCategory()` mapping
+
+### Updated File Summary
+
+| File | Purpose | Status |
+|---|---|---|
+| `ContentView.swift` | Adaptive TabView/SplitView + EntryListView + EntryRow + AboutUsView | ✅ Rewritten |
+| `HomeView.swift` | **NEW** — iPhone-first home dashboard | ✅ Added |
+| `FinancialHealthView.swift` | **NEW** — Financial health score (0–100) | ✅ Added |
+| `AddView.swift` | Clean single-column Form | ✅ Rewritten |
+| `ItemInfo.swift` | Clean expense detail view | ✅ Rewritten |
+| `OverView.swift` | Decision-focused overview with insight cards | ✅ Rewritten |
+| `ChartView.swift` | Simplified vertical layout | ✅ Rewritten |
+| `DataView.swift` | Proper navigation with 4 analytics sections | ✅ Rewritten |
+| `BudgetView.swift` | Added coaching nudges section | ✅ Updated |
