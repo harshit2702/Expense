@@ -75,9 +75,88 @@ enum ExpenseCategory: String, Codable, CaseIterable, Identifiable, Comparable {
             .replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
             .capitalized
     }
+
+    /// Compact list shown by default in the Add Expense picker.
+    /// The full `allCases` list remains available via "Show all categories".
+    /// Merges:  breakfast/lunch/dinner → food  |  taxi/publicTransport/fuel/parking → transport
+    ///          movies/music/theater/concerts/sportingEvents → entertainment
+    ///          internet/phone/cable → utilities  |  gardening/furniture/decorations → homeImprovement
+    ///          creditCard/bankingFees/debtRepayment moved to PaymentMethod
+    static var primaryCases: [ExpenseCategory] {
+        [
+            .food,
+            .groceries,
+            .transport,
+            .utilities,
+            .rent,
+            .entertainment,
+            .healthcare,
+            .education,
+            .shopping,
+            .subscriptions,
+            .homeImprovement,
+            .personalCare,
+            .investment,
+            .savings,
+            .gifts,
+            .charity,
+            .childcare,
+            .pets,
+            .miscellaneous
+        ]
+    }
     
     static func < (lhs: ExpenseCategory, rhs: ExpenseCategory) -> Bool {
         return lhs.rawValue < rhs.rawValue
+    }
+}
+
+enum PaymentMethod: String, Codable, CaseIterable, Identifiable, Comparable {
+    case cash
+    case debitCard
+    case creditCard
+    case upi
+    case wallet
+    case other
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        rawValue
+            .replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
+            .capitalized
+    }
+
+    static func < (lhs: PaymentMethod, rhs: PaymentMethod) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+enum PaymentMethodFilter: String, CaseIterable, Identifiable {
+    case all
+    case notSet
+    case cash
+    case debitCard
+    case creditCard
+    case upi
+    case wallet
+    case other
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .all:
+            return "All Methods"
+        case .notSet:
+            return "Not Set"
+        default:
+            return PaymentMethod(rawValue: rawValue)?.displayName ?? rawValue.capitalized
+        }
+    }
+
+    var method: PaymentMethod? {
+        PaymentMethod(rawValue: rawValue)
     }
 }
 
@@ -89,14 +168,23 @@ final class Item: Identifiable, Hashable {
     var amount: Double
     var descriptions: String
     var category: ExpenseCategory
+    var paymentMethod: PaymentMethod?
     
     
-    init(id: UUID = UUID(), date: Date = Date(), amount: Double = 10.0, descriptions: String = "Text", category: ExpenseCategory = .breakfast) {
+    init(
+        id: UUID = UUID(),
+        date: Date = Date(),
+        amount: Double = 10.0,
+        descriptions: String = "Text",
+        category: ExpenseCategory = .breakfast,
+        paymentMethod: PaymentMethod? = .upi
+    ) {
         self.id = id
         self.date = date
         self.amount = amount
         self.descriptions = descriptions
         self.category = category
+        self.paymentMethod = paymentMethod
     }
 }
 
@@ -184,6 +272,19 @@ final class Budget: Identifiable {
         self.category = category
         self.monthlyLimit = monthlyLimit
         self.createdDate = createdDate
+    }
+}
+
+@Model
+final class MonthlyBudgetSettings: Identifiable {
+    var id: UUID
+    var monthlyTotalBudget: Double?
+    var updatedAt: Date
+
+    init(id: UUID = UUID(), monthlyTotalBudget: Double? = nil, updatedAt: Date = Date()) {
+        self.id = id
+        self.monthlyTotalBudget = monthlyTotalBudget
+        self.updatedAt = updatedAt
     }
 }
 

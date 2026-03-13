@@ -15,6 +15,7 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @Query private var budgets: [Budget]
+    @Query private var monthlyBudgetSettings: [MonthlyBudgetSettings]
     @State private var isAddPresented = false
     private let addExpenseTip = AddExpenseTip()
 
@@ -40,8 +41,11 @@ struct HomeView: View {
         return ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100
     }
 
-    private var totalBudget: Double { budgets.reduce(0) { $0 + $1.monthlyLimit } }
-    private var budgetRemaining: Double { totalBudget - thisMonthTotal }
+    private var monthlyTotalBudget: Double? { monthlyBudgetSettings.first?.monthlyTotalBudget }
+    private var budgetRemaining: Double? {
+        guard let monthlyTotalBudget else { return nil }
+        return monthlyTotalBudget - thisMonthTotal
+    }
 
     private var categoryBreakdown: [(category: ExpenseCategory, amount: Double)] {
         let dict = currentMonthItems.reduce(into: [ExpenseCategory: Double]()) { $0[$1.category, default: 0] += $1.amount }
@@ -78,16 +82,16 @@ struct HomeView: View {
     }
 
     private var budgetRiskLevel: String {
-        guard totalBudget > 0 else { return "No budget set" }
-        let used = thisMonthTotal / totalBudget
+        guard let monthlyTotalBudget, monthlyTotalBudget > 0 else { return "Monthly total not set" }
+        let used = thisMonthTotal / monthlyTotalBudget
         if used > 1.0 { return "Over budget" }
         if used > 0.8 { return "At risk" }
         return "On track"
     }
 
     private var budgetRiskColor: Color {
-        guard totalBudget > 0 else { return .secondary }
-        let used = thisMonthTotal / totalBudget
+        guard let monthlyTotalBudget, monthlyTotalBudget > 0 else { return .secondary }
+        let used = thisMonthTotal / monthlyTotalBudget
         if used > 1.0 { return .red }
         if used > 0.8 { return .orange }
         return .green
@@ -182,7 +186,7 @@ struct HomeView: View {
                     Text("Budget Left")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if totalBudget > 0 {
+                    if let budgetRemaining {
                         Text("₹\(String(format: "%.0f", budgetRemaining))")
                             .font(.title3)
                             .fontWeight(.bold)
@@ -194,7 +198,7 @@ struct HomeView: View {
                         Text("—")
                             .font(.title3)
                             .foregroundStyle(.secondary)
-                        Text("Set a budget")
+                        Text("Set monthly total in Budget")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -278,7 +282,7 @@ struct HomeView: View {
                            detail: "₹\(String(format: "%.0f", peak.amount))")
             }
             // Budget coaching nudge
-            if totalBudget > 0 {
+            if let budgetRemaining {
                 let daysLeft = daysRemainingInMonth()
                 let dailyBudget = daysLeft > 0 ? budgetRemaining / Double(daysLeft) : 0
                 if budgetRemaining > 0 {
@@ -290,6 +294,10 @@ struct HomeView: View {
                                text: "Over budget by ₹\(String(format: "%.0f", abs(budgetRemaining)))",
                                detail: "Reduce spending to recover")
                 }
+            } else {
+                InsightRow(icon: "info.circle.fill", color: .secondary,
+                           text: "Monthly total budget not set",
+                           detail: "Set it in Budget tab to track Budget Left")
             }
             // Month-over-month
             if lastMonthTotal > 0 {
@@ -412,5 +420,5 @@ struct QuickActionLabel: View {
     NavigationStack {
         HomeView()
     }
-    .modelContainer(for: [Item.self, Budget.self], inMemory: true)
+    .modelContainer(for: [Item.self, Budget.self, MonthlyBudgetSettings.self], inMemory: true)
 }

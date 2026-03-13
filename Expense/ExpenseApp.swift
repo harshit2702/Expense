@@ -13,7 +13,11 @@ import TipKit
 struct ExpenseApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self, DailyCategorySummary.self, MonthlyCategorySummary.self, Budget.self
+            Item.self,
+            DailyCategorySummary.self,
+            MonthlyCategorySummary.self,
+            Budget.self,
+            MonthlyBudgetSettings.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

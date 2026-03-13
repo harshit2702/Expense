@@ -33,6 +33,8 @@ struct ItemInfo: View {
                     DetailRow(label: "Time", value: item.date.formatted(.dateTime.hour().minute()))
                     Divider()
                     DetailRow(label: "Category", value: item.category.displayName)
+                    Divider()
+                    DetailRow(label: "Payment Method", value: item.paymentMethod?.displayName ?? "Not set")
                     if !item.descriptions.isEmpty {
                         Divider()
                         DetailRow(label: "Description", value: item.descriptions)

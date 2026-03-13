@@ -18,6 +18,7 @@ struct ComparisonView: View {
     @State private var periodAEnd: Date
     @State private var periodBStart: Date
     @State private var periodBEnd: Date
+    @State private var isFlipped = false
     
     init() {
         let now = Date()
@@ -44,6 +45,17 @@ struct ComparisonView: View {
     var percentChange: Double {
         guard periodBTotal > 0 else { return 0 }
         return ((periodATotal - periodBTotal) / periodBTotal) * 100
+    }
+
+    private var primaryTitle: String { isFlipped ? "Period B" : "Period A" }
+    private var secondaryTitle: String { isFlipped ? "Period A" : "Period B" }
+    private var primaryLegend: String { isFlipped ? "Previous" : "Current" }
+    private var secondaryLegend: String { isFlipped ? "Current" : "Previous" }
+    private var primaryTotal: Double { isFlipped ? periodBTotal : periodATotal }
+    private var secondaryTotal: Double { isFlipped ? periodATotal : periodBTotal }
+    private var flippedPercentChange: Double {
+        guard secondaryTotal > 0 else { return 0 }
+        return ((primaryTotal - secondaryTotal) / secondaryTotal) * 100
     }
     
     var comparisonData: [(category: ExpenseCategory, periodA: Double, periodB: Double)] {
@@ -81,15 +93,18 @@ struct ComparisonView: View {
                     }
                 }
                 .padding(.horizontal)
+
+                Toggle("Flip A/B Perspective", isOn: $isFlipped)
+                    .padding(.horizontal)
                 
                 // Summary Cards
                 HStack(spacing: 12) {
-                    SummaryCard(title: "Period A", amount: periodATotal, color: .blue)
-                    SummaryCard(title: "Period B", amount: periodBTotal, color: .orange)
+                    SummaryCard(title: primaryTitle, amount: primaryTotal, color: .blue)
+                    SummaryCard(title: secondaryTitle, amount: secondaryTotal, color: .orange)
                     SummaryCard(
                         title: "Change",
-                        amount: percentChange,
-                        color: percentChange > 0 ? .red : .green,
+                        amount: flippedPercentChange,
+                        color: flippedPercentChange > 0 ? .red : .green,
                         isPercent: true
                     )
                 }
@@ -99,21 +114,24 @@ struct ComparisonView: View {
                 if !comparisonData.isEmpty {
                     GroupBox("Category Comparison") {
                         Chart(comparisonData, id: \.category) { entry in
+                            let primaryAmount = isFlipped ? entry.periodB : entry.periodA
+                            let secondaryAmount = isFlipped ? entry.periodA : entry.periodB
+
                             BarMark(
                                 x: .value("Category", entry.category.displayName),
-                                y: .value("Amount", entry.periodA)
+                                y: .value("Amount", primaryAmount)
                             )
-                            .foregroundStyle(by: .value("Period", "Current"))
-                            .position(by: .value("Period", "Current"))
+                            .foregroundStyle(by: .value("Period", primaryLegend))
+                            .position(by: .value("Period", primaryLegend))
                             
                             BarMark(
                                 x: .value("Category", entry.category.displayName),
-                                y: .value("Amount", entry.periodB)
+                                y: .value("Amount", secondaryAmount)
                             )
-                            .foregroundStyle(by: .value("Period", "Previous"))
-                            .position(by: .value("Period", "Previous"))
+                            .foregroundStyle(by: .value("Period", secondaryLegend))
+                            .position(by: .value("Period", secondaryLegend))
                         }
-                        .chartForegroundStyleScale(["Current": .blue, "Previous": .orange])
+                        .chartForegroundStyleScale([primaryLegend: .blue, secondaryLegend: .orange])
                         .frame(height: 300)
                     }
                     .padding(.horizontal)
@@ -135,12 +153,12 @@ struct ComparisonView: View {
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                Text("Current")
+                                Text(primaryLegend)
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.blue)
                                     .frame(width: 70, alignment: .trailing)
-                                Text("Previous")
+                                Text(secondaryLegend)
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.orange)
@@ -155,22 +173,25 @@ struct ComparisonView: View {
                             Divider()
                             
                             ForEach(comparisonData, id: \.category) { entry in
+                                                            let primaryAmount = isFlipped ? entry.periodB : entry.periodA
+                                                            let secondaryAmount = isFlipped ? entry.periodA : entry.periodB
+
                                 HStack {
                                     Text(entry.category.displayName)
                                         .font(.subheadline)
                                         .frame(maxWidth: .infinity, alignment: .leading)
-                                    Text("₹\(String(format: "%.0f", entry.periodA))")
+                                                                Text("₹\(String(format: "%.0f", primaryAmount))")
                                         .font(.subheadline)
                                         .foregroundStyle(.blue)
                                         .frame(width: 70, alignment: .trailing)
-                                    Text("₹\(String(format: "%.0f", entry.periodB))")
+                                                                Text("₹\(String(format: "%.0f", secondaryAmount))")
                                         .font(.subheadline)
                                         .foregroundStyle(.orange)
                                         .frame(width: 70, alignment: .trailing)
                                     
-                                    let change = entry.periodB > 0
-                                        ? ((entry.periodA - entry.periodB) / entry.periodB * 100)
-                                        : (entry.periodA > 0 ? 100 : 0)
+                                                                let change = secondaryAmount > 0
+                                                                    ? ((primaryAmount - secondaryAmount) / secondaryAmount * 100)
+                                                                    : (primaryAmount > 0 ? 100 : 0)
                                     Text("\(change >= 0 ? "+" : "")\(String(format: "%.0f", change))%")
                                         .font(.subheadline)
                                         .foregroundStyle(change > 0 ? .red : .green)

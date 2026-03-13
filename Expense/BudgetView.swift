@@ -12,14 +12,43 @@ import TipKit
 struct BudgetView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var budgets: [Budget]
+    @Query private var monthlyBudgetSettings: [MonthlyBudgetSettings]
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @State private var showAddBudget = false
+    @State private var monthlyTotalBudgetInput = ""
+    @State private var showMonthlyBudgetAlert = false
     @State private var deleteTrigger = false
     private let budgetTip = SetBudgetTip()
     
     var body: some View {
         List {
             TipView(budgetTip)
+
+            SwiftUI.Section("Total Monthly Budget") {
+                TextField("Set monthly total budget (₹)", text: $monthlyTotalBudgetInput)
+                    .keyboardType(.decimalPad)
+
+                HStack {
+                    Text("Current")
+                    Spacer()
+                    if let total = monthlySettings.monthlyTotalBudget {
+                        Text("₹\(String(format: "%.0f", total))")
+                            .fontWeight(.bold)
+                    } else {
+                        Text("Not set")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Button("Save Monthly Total") {
+                    saveMonthlyTotalBudget()
+                }
+
+                Text("This is separate from category budgets below. Home uses this total budget to calculate budget left.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if budgets.isEmpty {
                 ContentUnavailableView(
                     "No Budgets Set",
@@ -28,15 +57,15 @@ struct BudgetView: View {
                 )
             } else {
                 // Summary Section
-                SwiftUI.Section("Monthly Summary") {
+                SwiftUI.Section("Category Budget Summary") {
                     HStack {
-                        Text("Total Budget")
+                        Text("Total Category Budgets")
                         Spacer()
                         Text("₹\(String(format: "%.0f", totalBudget))")
                             .fontWeight(.bold)
                     }
                     HStack {
-                        Text("Total Spent")
+                        Text("Spent in Budgeted Categories")
                         Spacer()
                         Text("₹\(String(format: "%.0f", totalSpent))")
                             .fontWeight(.bold)
@@ -103,7 +132,49 @@ struct BudgetView: View {
         .sheet(isPresented: $showAddBudget) {
             AddBudgetView()
         }
+        .onAppear {
+            ensureMonthlySettingsExists()
+            if let total = monthlySettings.monthlyTotalBudget {
+                monthlyTotalBudgetInput = String(format: "%.0f", total)
+            }
+        }
+        .alert("Invalid Monthly Total", isPresented: $showMonthlyBudgetAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Enter a valid amount greater than 0. Leave empty only if you want to clear the total budget.")
+        }
         .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.5), trigger: deleteTrigger)
+    }
+
+    private var monthlySettings: MonthlyBudgetSettings {
+        if let existing = monthlyBudgetSettings.first { return existing }
+        let created = MonthlyBudgetSettings()
+        modelContext.insert(created)
+        try? modelContext.save()
+        return created
+    }
+
+    private func ensureMonthlySettingsExists() {
+        _ = monthlySettings
+    }
+
+    private func saveMonthlyTotalBudget() {
+        let trimmed = monthlyTotalBudgetInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            monthlySettings.monthlyTotalBudget = nil
+            monthlySettings.updatedAt = Date()
+            try? modelContext.save()
+            return
+        }
+
+        guard let value = Double(trimmed), value > 0 else {
+            showMonthlyBudgetAlert = true
+            return
+        }
+
+        monthlySettings.monthlyTotalBudget = value
+        monthlySettings.updatedAt = Date()
+        try? modelContext.save()
     }
     
     private var totalBudget: Double {
@@ -240,7 +311,7 @@ struct AddBudgetView: View {
     
     var availableCategories: [ExpenseCategory] {
         let existingCategories = Set(budgets.map { $0.category })
-        return ExpenseCategory.allCases.filter { !existingCategories.contains($0) }
+        return ExpenseCategory.primaryCases.filter { !existingCategories.contains($0) }
     }
     
     var body: some View {
@@ -302,5 +373,5 @@ struct AddBudgetView: View {
 
 #Preview {
     BudgetView()
-        .modelContainer(for: [Budget.self, Item.self], inMemory: true)
+    .modelContainer(for: [Budget.self, Item.self, MonthlyBudgetSettings.self], inMemory: true)
 }

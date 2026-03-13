@@ -16,12 +16,11 @@ struct AddView: View {
     @State var description = ""
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query private var items: [Item]
     @Query private var DCS: [DailyCategorySummary]
     @Query private var MCS: [MonthlyCategorySummary]
     @Binding var isPresented: Bool
     @State private var selectedCategory: ExpenseCategory = .food
-    @State private var searchCategory = ""
+    @State private var selectedPaymentMethod: PaymentMethod = .upi
     @State private var showValidationAlert = false
     @State private var validationMessage = ""
     @State private var saveTrigger = false
@@ -48,19 +47,48 @@ struct AddView: View {
 
                 // MARK: Category
                 Section("Category") {
-                    TextField("Search category…", text: $searchCategory)
-                    Picker("Category", selection: $selectedCategory) {
-                        ForEach(searchResults) { category in
-                            Text(category.displayName).tag(category)
+                    Text("Selected: \(selectedCategory.displayName)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(ExpenseCategory.primaryCases) { category in
+                                CategoryChip(
+                                    title: category.displayName,
+                                    isSelected: selectedCategory == category
+                                ) {
+                                    selectedCategory = category
+                                }
+                            }
                         }
                     }
-                    .pickerStyle(.navigationLink)
                 }
 
                 // MARK: Date & Time
                 Section("Date & Time") {
                     DatePicker("Date", selection: $date, displayedComponents: [.date])
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+
                     DatePicker("Time", selection: $date, displayedComponents: [.hourAndMinute])
+                        .datePickerStyle(.wheel)
+                        .labelsHidden()
+                        .frame(maxHeight: 110)
+                }
+
+                // MARK: Payment Method
+                Section("Payment Method") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
+                        ForEach(PaymentMethod.allCases) { method in
+                            PaymentMethodChip(
+                                title: method.displayName,
+                                isSelected: selectedPaymentMethod == method
+                            ) {
+                                selectedPaymentMethod = method
+                            }
+                        }
+                    }
                 }
 
                 // MARK: Description
@@ -102,7 +130,14 @@ struct AddView: View {
             return
         }
 
-        let newItem = Item(id: UUID(), date: date, amount: parsedAmount, descriptions: description, category: selectedCategory)
+        let newItem = Item(
+            id: UUID(),
+            date: date,
+            amount: parsedAmount,
+            descriptions: description,
+            category: selectedCategory,
+            paymentMethod: selectedPaymentMethod
+        )
         ExpenseDataManager.addItemAndUpdateSummaries(
             item: newItem,
             dailySummaries: DCS,
@@ -114,15 +149,45 @@ struct AddView: View {
         isPresented = false
     }
 
-    var searchResults: [ExpenseCategory] {
-        if searchCategory.isEmpty {
-            return ExpenseCategory.allCases
-        } else {
-            return ExpenseCategory.allCases.filter {
-                $0.rawValue.localizedCaseInsensitiveContains(searchCategory) ||
-                $0.rawValue.localizedCaseInsensitiveContains("miscellaneous")
-            }
+}
+
+private struct CategoryChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .foregroundStyle(isSelected ? .white : .primary)
+                .background(isSelected ? Color.blue : Color.secondary.opacity(0.12))
+                .clipShape(Capsule())
         }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct PaymentMethodChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .foregroundStyle(isSelected ? .white : .primary)
+                .background(isSelected ? Color.blue : Color.secondary.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
     }
 }
 

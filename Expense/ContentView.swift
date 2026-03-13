@@ -9,6 +9,10 @@ import SwiftUI
 import SwiftData
 import Combine
 import TipKit
+import UniformTypeIdentifiers
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Adaptive Root View (TabView on iPhone, SplitView on iPad)
 
@@ -19,7 +23,7 @@ struct ContentView: View {
         if sizeClass == .compact {
             CompactTabView()
         } else {
-            RegularSplitView()
+            RegularSidebarTabContainer()
         }
     }
 }
@@ -105,49 +109,255 @@ enum AppSection: String, Identifiable, CaseIterable {
     }
 }
 
-struct RegularSplitView: View {
-    @State private var selectedSection: AppSection? = .home
-    @State private var isPresented = false
-    @State private var selectedItem: Item?
+struct RegularSidebarTabContainer: View {
+    @EnvironmentObject private var commandCenter: AppCommandCenter
+    @State private var selectedTab: RegularAppTab = .home
 
     var body: some View {
-        NavigationSplitView {
-            List(AppSection.allCases, id: \.self, selection: $selectedSection) { section in
-                Label(section.name, systemImage: section.icon)
+        let tabs = TabView(selection: $selectedTab) {
+            NavigationStack {
+                HomeView()
+            }
+            .tabItem {
+                Label("Home", systemImage: "house.fill")
+            }
+            .tag(RegularAppTab.home)
+
+            RegularEntriesSplitView()
+                .tabItem {
+                    Label("Entries", systemImage: "list.bullet.rectangle.fill")
+                }
+                .tag(RegularAppTab.entries)
+
+            RegularAnalyticsSplitView()
+                .tabItem {
+                    Label("Analytics", systemImage: "chart.bar.fill")
+                }
+                .tag(RegularAppTab.analytics)
+
+            NavigationStack {
+                BudgetView()
+                    .navigationTitle("Budget")
+            }
+            .tabItem {
+                Label("Budget", systemImage: "target")
+            }
+            .tag(RegularAppTab.budget)
+
+            NavigationStack {
+                AboutUsView()
+                    .navigationTitle("About")
+            }
+            .tabItem {
+                Label("About", systemImage: "info.circle")
+            }
+            .tag(RegularAppTab.about)
+        }
+        .tint(.blue)
+        .onChange(of: selectedTab) { _, newValue in
+            commandCenter.goToTab(newValue)
+        }
+        .onChange(of: commandCenter.requestedTab) { _, newValue in
+            selectedTab = newValue
+        }
+
+        if #available(iOS 18.0, *) {
+            tabs.tabViewStyle(.sidebarAdaptable)
+        } else {
+            tabs
+        }
+    }
+}
+
+struct RegularEntriesSplitView: View {
+    @State private var selectedSection: AppSection? = .home
+    @State private var selectedItem: Item?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            List([AppSection.entry], id: \.self, selection: $selectedSection) { section in
+                Label("Entries", systemImage: section.icon)
             }
             .listStyle(.sidebar)
             .navigationTitle("Expense")
+        } content: {
+            EntryListView(selectedItem: $selectedItem, showsNavigationDestination: false)
+                .navigationTitle("Entries")
         } detail: {
-            switch selectedSection {
-            case .home:
-                HomeView()
-                    .navigationTitle("Home")
-            case .entry:
-                HStack(spacing: 0) {
-                    EntryListView()
-                        .frame(minWidth: 300, idealWidth: 350, maxWidth: 400)
-                    Divider()
-                    if let item = selectedItem {
-                        ItemInfo(item: item)
-                            .id(item.id)
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        ContentUnavailableView("Select an Entry", systemImage: "doc.text", description: Text("Pick an expense from the list to see details."))
-                            .frame(maxWidth: .infinity)
+            if let item = selectedItem {
+                ItemInfo(item: item)
+                    .id(item.id)
+                    .navigationTitle("Expense Detail")
+            } else {
+                ContentUnavailableView("Select an Entry", systemImage: "doc.text", description: Text("Pick an expense from the list to see details."))
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    columnVisibility = columnVisibility == .all ? .detailOnly : .all
+                } label: {
+                    Label(
+                        columnVisibility == .all ? "Focus Detail" : "Show Columns",
+                        systemImage: columnVisibility == .all ? "rectangle.expand.vertical" : "sidebar.left"
+                    )
+                }
+            }
+        }
+        .navigationSplitViewStyle(.balanced)
+        .onAppear { columnVisibility = .all }
+    }
+}
+
+struct RegularAnalyticsSplitView: View {
+    @State private var selectedSection: DataViewSection? = .overview
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var inspectorPresented = true
+    @State private var selectedCategory: ExpenseCategory?
+    @State private var selectedMethod: PaymentMethod?
+    @Environment(\.openWindow) private var openWindow
+
+    private var activeFilters: AnalyticsFilterOptions {
+        AnalyticsFilterOptions(category: selectedCategory, paymentMethod: selectedMethod)
+    }
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            List([AppSection.data], id: \.self) { section in
+                Label("Analytics", systemImage: section.icon)
+            }
+            .listStyle(.sidebar)
+            .navigationTitle("Expense")
+        } content: {
+            AnalyticsSectionList(selectedSection: $selectedSection)
+                .navigationTitle("Analytics")
+        } detail: {
+            AnalyticsDetailView(selectedSection: selectedSection)
+                .environment(\.analyticsFilterOptions, activeFilters)
+                .inspector(isPresented: $inspectorPresented) {
+                    AnalyticsInspectorView(
+                        selectedSection: $selectedSection,
+                        selectedCategory: $selectedCategory,
+                        selectedMethod: $selectedMethod,
+                        onOpenComparisonWindow: {
+                            openWindow(id: "comparison-window")
+                        }
+                    )
+                }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    columnVisibility = columnVisibility == .all ? .detailOnly : .all
+                } label: {
+                    Label(
+                        columnVisibility == .all ? "Focus Detail" : "Show Columns",
+                        systemImage: columnVisibility == .all ? "rectangle.expand.vertical" : "sidebar.left"
+                    )
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    inspectorPresented.toggle()
+                } label: {
+                    Label(inspectorPresented ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right")
+                }
+            }
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+}
+
+struct AnalyticsInspectorView: View {
+    @Binding var selectedSection: DataViewSection?
+    @Binding var selectedCategory: ExpenseCategory?
+    @Binding var selectedMethod: PaymentMethod?
+    let onOpenComparisonWindow: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Analytics") {
+                    Picker("Section", selection: $selectedSection) {
+                        ForEach(DataViewSection.allCases) { section in
+                            Text(section.displayName).tag(Optional(section))
+                        }
                     }
                 }
-                .navigationTitle("Entries")
-            case .data:
-                DataView()
-                    .navigationTitle("Analytics")
-            case .budget:
-                BudgetView()
-                    .navigationTitle("Budget")
-            case .aboutUs:
-                AboutUsView()
-                    .navigationTitle("About")
+
+                Section("Filters") {
+                    Picker("Category", selection: $selectedCategory) {
+                        Text("All Categories").tag(ExpenseCategory?.none)
+                        ForEach(ExpenseCategory.allCases) { category in
+                            Text(category.displayName).tag(ExpenseCategory?.some(category))
+                        }
+                    }
+
+                    Picker("Payment", selection: $selectedMethod) {
+                        Text("All Methods").tag(PaymentMethod?.none)
+                        ForEach(PaymentMethod.allCases) { method in
+                            Text(method.displayName).tag(PaymentMethod?.some(method))
+                        }
+                    }
+                }
+
+                Section("Actions") {
+                    Button("Open Comparison in New Window") {
+                        onOpenComparisonWindow()
+                    }
+                }
+            }
+            .navigationTitle("Inspector")
+        }
+    }
+}
+
+struct AnalyticsSectionList: View {
+    @Binding var selectedSection: DataViewSection?
+
+    var body: some View {
+        List(DataViewSection.allCases, selection: $selectedSection) { section in
+            HStack(spacing: 14) {
+                Image(systemName: section.icon)
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+                    .frame(width: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(section.displayName)
+                        .font(.headline)
+                    Text(section.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 6)
+            .tag(section)
+        }
+        .listStyle(.insetGrouped)
+    }
+}
+
+struct AnalyticsDetailView: View {
+    let selectedSection: DataViewSection?
+
+    var body: some View {
+        Group {
+            switch selectedSection {
+            case .overview:
+                OverviewView()
+                    .navigationTitle("Overview")
+            case .comparison:
+                ComparisonView()
+                    .navigationTitle("Compare")
+            case .trends:
+                TrendsView()
+                    .navigationTitle("Trends")
+            case .healthScore:
+                FinancialHealthView()
+                    .navigationTitle("Financial Health")
             case .none:
-                ContentUnavailableView("Select a Section", systemImage: "sidebar.left", description: Text("Choose a section from the sidebar."))
+                ContentUnavailableView("Select Analytics", systemImage: "chart.bar", description: Text("Pick an analytics section to view details."))
             }
         }
     }
@@ -157,18 +367,48 @@ struct RegularSplitView: View {
 
 struct EntryListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @Query private var DCS: [DailyCategorySummary]
     @Query private var MCS: [MonthlyCategorySummary]
+
+    private var selectedItemBinding: Binding<Item?>?
+    private let showsNavigationDestination: Bool
+
+    init(selectedItem: Binding<Item?>? = nil, showsNavigationDestination: Bool = true) {
+        self.selectedItemBinding = selectedItem
+        self.showsNavigationDestination = showsNavigationDestination
+    }
+
     @State private var isPresented = false
     @State private var searchText = ""
     @State private var deleteTrigger = false
+    @State private var showDeleteAllConfirmation = false
+    @State private var showShareSheet = false
+    @State private var shareURL: URL?
+    @State private var showShareError = false
+    @State private var shareErrorMessage = ""
+    @State private var paymentFilter: PaymentMethodFilter = .all
+    @State private var showingImporter = false
+    @State private var importResultMessage = ""
+    @State private var showImportResult = false
+    @State private var importFailures: [ImportFailure] = []
+    @State private var editingItem: Item?
+    
     private let searchTip = SearchExpensesTip()
 
     var filteredItems: [Item] {
-        if searchText.isEmpty { return items }
-        return items.filter { item in
+        let methodFiltered: [Item]
+        switch paymentFilter {
+        case .all:
+            methodFiltered = items
+        case .notSet:
+            methodFiltered = items.filter { $0.paymentMethod == nil }
+        default:
+            methodFiltered = items.filter { $0.paymentMethod == paymentFilter.method }
+        }
+
+        if searchText.isEmpty { return methodFiltered }
+        return methodFiltered.filter { item in
             item.descriptions.localizedCaseInsensitiveContains(searchText) ||
             item.category.rawValue.localizedCaseInsensitiveContains(searchText) ||
             String(format: "%.2f", item.amount).contains(searchText)
@@ -188,9 +428,15 @@ struct EntryListView: View {
             ForEach(groupedByDay, id: \.date) { group in
                 Section {
                     ForEach(group.items, id: \.id) { item in
-                        NavigationLink(value: item) {
-                            EntryRow(item: item)
-                        }
+                        entryRow(for: item)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    editingItem = item
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(.blue)
+                            }
                     }
                     .onDelete { offsets in deleteItems(from: group.items, at: offsets) }
                 } header: {
@@ -209,9 +455,29 @@ struct EntryListView: View {
         }
         .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.5), trigger: deleteTrigger)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) { EditButton() }
+            ToolbarItem(placement: .navigationBarLeading) {
+                Menu {
+                    Picker("Payment Method", selection: $paymentFilter) {
+                        ForEach(PaymentMethodFilter.allCases) { filter in
+                            Text(filter.displayName).tag(filter)
+                        }
+                    }
+                } label: {
+                    Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { deleteAllItems() } label: { Label("Delete All", systemImage: "trash") }
+                Button(role: .destructive) { showDeleteAllConfirmation = true } label: {
+                    Label("Delete All", systemImage: "trash")
+                }
+                .disabled(items.isEmpty)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { prepareCSVShare() } label: { Label("Share CSV", systemImage: "square.and.arrow.up") }
+                    .disabled(items.isEmpty)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showingImporter = true } label: { Label("Import CSV", systemImage: "tray.and.arrow.down") }
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { isPresented = true } label: { Label("Add Expense", systemImage: "plus") }
@@ -220,9 +486,71 @@ struct EntryListView: View {
         .sheet(isPresented: $isPresented) {
             AddView(isPresented: $isPresented)
         }
+        .sheet(item: $editingItem) { item in
+            EditEntryView(item: item)
+        }
+        .confirmationDialog("Delete all entries?", isPresented: $showDeleteAllConfirmation, titleVisibility: .visible) {
+            Button("Delete All", role: .destructive) { deleteAllItems() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will remove all expenses and summaries. This action cannot be undone.")
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let shareURL {
+                ShareSheet(activityItems: [shareURL])
+            }
+        }
+        .alert("Unable to Share", isPresented: $showShareError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(shareErrorMessage)
+        }
+        .fileImporter(
+            isPresented: $showingImporter,
+            allowedContentTypes: [.commaSeparatedText, .plainText],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                Task {
+                    await importCSV(at: url)
+                }
+            case .failure(let error):
+                importResultMessage = "Import failed: \(error.localizedDescription)"
+                importFailures = []
+                showImportResult = true
+            }
+        }
+        .alert("CSV Import", isPresented: $showImportResult) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            if importFailures.isEmpty {
+                Text(importResultMessage)
+            } else {
+                Text("\(importResultMessage)\n\nIssues:\n\(importFailures.prefix(5).map { "• Row \($0.row): \($0.reason)" }.joined(separator: "\n"))")
+            }
+        }
     }
 
     // MARK: Actions
+
+    @ViewBuilder
+    private func entryRow(for item: Item) -> some View {
+        if showsNavigationDestination {
+            NavigationLink(value: item) {
+                EntryRow(item: item)
+            }
+        } else {
+            Button {
+                selectedItemBinding?.wrappedValue = item
+            } label: {
+                EntryRow(item: item)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+        }
+    }
 
     private func addSampleItems() {
         withAnimation {
@@ -237,6 +565,9 @@ struct EntryListView: View {
             for index in offsets {
                 let item = groupItems[index]
                 ExpenseDataManager.deleteItemAndUpdateSummaries(item: item, dailySummaries: DCS, monthlySummaries: MCS, context: modelContext)
+                if selectedItemBinding?.wrappedValue?.id == item.id {
+                    selectedItemBinding?.wrappedValue = nil
+                }
             }
             deleteTrigger.toggle()
         }
@@ -247,6 +578,303 @@ struct EntryListView: View {
             ExpenseDataManager.deleteAllData(items: items, dailySummaries: DCS, monthlySummaries: MCS, context: modelContext)
             deleteTrigger.toggle()
         }
+    }
+
+    private func prepareCSVShare() {
+        let csvText = makeCSV()
+        guard let data = csvText.data(using: .utf8) else {
+            shareErrorMessage = "Failed to encode CSV data."
+            showShareError = true
+            return
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let fileName = "Expenses-\(formatter.string(from: Date())).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        do {
+            try data.write(to: url, options: .atomic)
+            shareURL = url
+            showShareSheet = true
+        } catch {
+            shareErrorMessage = "Unable to create CSV file."
+            showShareError = true
+        }
+    }
+
+    private func makeCSV() -> String {
+        let header = "Date,Amount,Category,Payment Method,Description"
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate, .withTime, .withColonSeparatorInTime]
+        let rows = items.sorted { $0.date < $1.date }.map { item in
+            let dateText = formatter.string(from: item.date)
+            let amountText = String(format: "%.2f", item.amount)
+            let categoryText = item.category.displayName
+            let methodText = item.paymentMethod?.displayName ?? "Not set"
+            let descriptionText = item.descriptions
+            return [dateText, amountText, categoryText, methodText, descriptionText].map(csvEscape).joined(separator: ",")
+        }
+        return ([header] + rows).joined(separator: "\n")
+    }
+
+    private func csvEscape(_ value: String) -> String {
+        if value.contains(",") || value.contains("\n") || value.contains("\"") {
+            let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(escaped)\""
+        }
+        return value
+    }
+
+    private func importCSV(at url: URL) async {
+        do {
+            let localURL = try makeLocalImportCopy(from: url)
+            let text = try String(contentsOf: localURL, encoding: .utf8)
+            let lines = text
+                .components(separatedBy: CharacterSet.newlines)
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+            guard let headerLine = lines.first else {
+                await MainActor.run {
+                    importResultMessage = "No rows found in file."
+                    importFailures = []
+                    showImportResult = true
+                }
+                return
+            }
+
+            let header = parseCSVRow(headerLine).map { normalizeHeader($0) }
+            let dateIdx = header.firstIndex(of: "date")
+            let amountIdx = header.firstIndex(of: "amount")
+            let categoryIdx = header.firstIndex(of: "category")
+            let methodIdx = header.firstIndex(of: "paymentmethod")
+            let descIdx = header.firstIndex(of: "description") ?? header.firstIndex(of: "desc")
+
+            var imported = 0
+            var failures: [ImportFailure] = []
+
+            for (offset, line) in lines.dropFirst().enumerated() {
+                let rowNumber = offset + 2
+                let cols = parseCSVRow(line)
+                if cols.isEmpty {
+                    failures.append(ImportFailure(row: rowNumber, reason: "Empty row", raw: line))
+                    continue
+                }
+
+                let dateText = dateIdx.flatMap { cols[safe: $0] } ?? ""
+                let categoryText = categoryIdx.flatMap { cols[safe: $0] } ?? ""
+                let methodText = methodIdx.flatMap { cols[safe: $0] } ?? ""
+                let descriptionText = descIdx.flatMap { cols[safe: $0] } ?? ""
+                let amountText = amountIdx.flatMap { cols[safe: $0] } ?? ""
+
+                let parsedAmount = parseAmountOrZero(amountText)
+                let date = parseDateOrToday(dateText)
+                let category = mapCategory(categoryText)
+                let method = mapPaymentMethod(methodText)
+
+                let item = Item(
+                    id: UUID(),
+                    date: date,
+                    amount: parsedAmount,
+                    descriptions: descriptionText,
+                    category: category,
+                    paymentMethod: method
+                )
+
+                await MainActor.run {
+                    ExpenseDataManager.addItemAndUpdateSummaries(
+                        item: item,
+                        dailySummaries: DCS,
+                        monthlySummaries: MCS,
+                        context: modelContext
+                    )
+                }
+
+                imported += 1
+            }
+
+            await MainActor.run {
+                importFailures = failures
+                importResultMessage = "Imported: \(imported), Issues: \(failures.count)"
+                showImportResult = true
+            }
+        } catch {
+            await MainActor.run {
+                importResultMessage = "Import failed: \(error.localizedDescription)"
+                importFailures = []
+                showImportResult = true
+            }
+        }
+    }
+
+    private func makeLocalImportCopy(from pickedURL: URL) throws -> URL {
+        let fileManager = FileManager.default
+        let didStartScopedAccess = pickedURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStartScopedAccess {
+                pickedURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let importsDirectory = fileManager.temporaryDirectory.appendingPathComponent("CSVImports", isDirectory: true)
+        if !fileManager.fileExists(atPath: importsDirectory.path) {
+            try fileManager.createDirectory(at: importsDirectory, withIntermediateDirectories: true)
+        }
+
+        let destinationURL = importsDirectory.appendingPathComponent("\(UUID().uuidString)-\(pickedURL.lastPathComponent)")
+
+        do {
+            try fileManager.copyItem(at: pickedURL, to: destinationURL)
+            return destinationURL
+        } catch {
+            var coordinatorError: NSError?
+            var readCopyError: Error?
+            let coordinator = NSFileCoordinator()
+
+            coordinator.coordinate(readingItemAt: pickedURL, options: [], error: &coordinatorError) { readableURL in
+                do {
+                    let data = try Data(contentsOf: readableURL)
+                    try data.write(to: destinationURL, options: .atomic)
+                } catch {
+                    readCopyError = error
+                }
+            }
+
+            if let readCopyError {
+                throw readCopyError
+            }
+
+            if let coordinatorError {
+                throw coordinatorError
+            }
+
+            throw error
+        }
+    }
+
+    private func parseCSVRow(_ row: String) -> [String] {
+        var result: [String] = []
+        var current = ""
+        var inQuotes = false
+        var index = row.startIndex
+
+        while index < row.endIndex {
+            let char = row[index]
+            if char == "\"" {
+                let nextIndex = row.index(after: index)
+                if inQuotes, nextIndex < row.endIndex, row[nextIndex] == "\"" {
+                    current.append("\"")
+                    index = nextIndex
+                } else {
+                    inQuotes.toggle()
+                }
+            } else if char == ",", !inQuotes {
+                result.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                current = ""
+            } else {
+                current.append(char)
+            }
+            index = row.index(after: index)
+        }
+
+        result.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+        return result
+    }
+
+    private func normalizeHeader(_ value: String) -> String {
+        value
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: " ", with: "")
+    }
+
+    private func parseAmountOrZero(_ value: String) -> Double {
+        let sanitized = value
+            .replacingOccurrences(of: "₹", with: "")
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return Double(sanitized) ?? 0
+    }
+
+    private func parseDateOrToday(_ value: String) -> Date {
+        let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.isEmpty {
+            return Date()
+        }
+
+        // Accept ISO datetime without timezone: 2026-03-01T22:06:00
+        let isoNoTZ = DateFormatter()
+        isoNoTZ.locale = Locale(identifier: "en_US_POSIX")
+        isoNoTZ.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        if let date = isoNoTZ.date(from: cleaned) {
+            return date
+        }
+
+        // Fallback to flexible ISO8601 parser
+        let iso = ISO8601DateFormatter()
+        if let date = iso.date(from: cleaned) {
+            return date
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let formats = ["yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd HH:mm:ss"]
+        for format in formats {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: cleaned) {
+                return date
+            }
+        }
+
+        return Date()
+    }
+
+    private func mapCategory(_ raw: String) -> ExpenseCategory {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.isEmpty {
+            return .miscellaneous
+        }
+
+        if let exact = ExpenseCategory.allCases.first(where: { $0.rawValue.lowercased() == normalized }) {
+            return exact
+        }
+
+        if let displayMatch = ExpenseCategory.allCases.first(where: { $0.displayName.lowercased() == normalized }) {
+            return displayMatch
+        }
+
+        return .miscellaneous
+    }
+
+    private func mapPaymentMethod(_ raw: String) -> PaymentMethod {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.isEmpty {
+            return .other
+        }
+
+        if let exact = PaymentMethod.allCases.first(where: { $0.rawValue.lowercased() == normalized }) {
+            return exact
+        }
+
+        if let displayMatch = PaymentMethod.allCases.first(where: { $0.displayName.lowercased() == normalized }) {
+            return displayMatch
+        }
+
+        return .other
+    }
+}
+
+private struct ImportFailure: Identifiable {
+    let id = UUID()
+    let row: Int
+    let reason: String
+    let raw: String
+}
+
+private extension Collection {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
 
@@ -322,6 +950,127 @@ struct EntryRow: View {
         }
     }
 }
+
+struct EditEntryView: View {
+    let item: Item
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query private var DCS: [DailyCategorySummary]
+    @Query private var MCS: [MonthlyCategorySummary]
+
+    @State private var date: Date
+    @State private var amountText: String
+    @State private var descriptionText: String
+    @State private var selectedCategory: ExpenseCategory
+    @State private var selectedPaymentMethod: PaymentMethod
+    @State private var showValidationAlert = false
+
+    init(item: Item) {
+        self.item = item
+        _date = State(initialValue: item.date)
+        _amountText = State(initialValue: String(format: "%.0f", item.amount))
+        _descriptionText = State(initialValue: item.descriptions)
+        _selectedCategory = State(initialValue: item.category)
+        _selectedPaymentMethod = State(initialValue: item.paymentMethod ?? .other)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Amount") {
+                    TextField("Amount", text: $amountText)
+                        .keyboardType(.numberPad)
+                }
+
+                Section("Category") {
+                    Picker("Category", selection: $selectedCategory) {
+                        ForEach(ExpenseCategory.allCases) { category in
+                            Text(category.displayName).tag(category)
+                        }
+                    }
+                }
+
+                Section("Date & Time") {
+                    DatePicker("Date", selection: $date, displayedComponents: .date)
+                    DatePicker("Time", selection: $date, displayedComponents: .hourAndMinute)
+                }
+
+                Section("Payment Method") {
+                    Picker("Payment Method", selection: $selectedPaymentMethod) {
+                        ForEach(PaymentMethod.allCases) { method in
+                            Text(method.displayName).tag(method)
+                        }
+                    }
+                }
+
+                Section("Description") {
+                    TextField("Description", text: $descriptionText, axis: .vertical)
+                        .lineLimit(2...5)
+                }
+            }
+            .navigationTitle("Edit Entry")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { saveChanges() }
+                        .fontWeight(.semibold)
+                }
+            }
+            .alert("Invalid Input", isPresented: $showValidationAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Please enter a valid amount greater than 0.")
+            }
+        }
+    }
+
+    private func saveChanges() {
+        guard let amount = Double(amountText), amount > 0 else {
+            showValidationAlert = true
+            return
+        }
+
+        let updated = Item(
+            id: item.id,
+            date: date,
+            amount: amount,
+            descriptions: descriptionText,
+            category: selectedCategory,
+            paymentMethod: selectedPaymentMethod
+        )
+
+        ExpenseDataManager.deleteItemAndUpdateSummaries(
+            item: item,
+            dailySummaries: DCS,
+            monthlySummaries: MCS,
+            context: modelContext
+        )
+
+        ExpenseDataManager.addItemAndUpdateSummaries(
+            item: updated,
+            dailySummaries: DCS,
+            monthlySummaries: MCS,
+            context: modelContext
+        )
+
+        dismiss()
+    }
+}
+
+#if canImport(UIKit)
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
+}
+#endif
 struct AboutUsView: View {
     var body: some View {
         ScrollView {
