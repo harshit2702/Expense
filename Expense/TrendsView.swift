@@ -11,6 +11,7 @@ import Charts
 import TipKit
 
 struct TrendsView: View {
+    @Environment(\.analyticsFilterOptions) private var analyticsFilters
     @Query(sort: \Item.date) private var items: [Item]
     
     @State private var trendPeriod: TrendPeriod = .last30Days
@@ -36,8 +37,16 @@ struct TrendsView: View {
         Calendar.current.date(byAdding: .day, value: -trendPeriod.days, to: Date()) ?? Date()
     }
     
+    var itemsAfterInspectorFilters: [Item] {
+        items.filter { item in
+            let categoryMatches = analyticsFilters.category == nil || item.category == analyticsFilters.category
+            let methodMatches = analyticsFilters.paymentMethod == nil || item.paymentMethod == analyticsFilters.paymentMethod
+            return categoryMatches && methodMatches
+        }
+    }
+
     var filteredItems: [Item] {
-        items.filter { $0.date >= startDate }
+        itemsAfterInspectorFilters.filter { $0.date >= startDate }
     }
     
     var dailyTotals: [(date: Date, amount: Double)] {

@@ -11,6 +11,8 @@ import Charts
 import TipKit
 
 struct ComparisonView: View {
+    @Environment(\.analyticsFilterOptions) private var analyticsFilters
+    @Environment(\.openWindow) private var openWindow
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     private let compareTip = CompareSpendingTip()
     
@@ -31,12 +33,20 @@ struct ComparisonView: View {
         _periodBEnd = State(initialValue: monthAgo)
     }
     
+    private var itemsAfterInspectorFilters: [Item] {
+        items.filter { item in
+            let categoryMatches = analyticsFilters.category == nil || item.category == analyticsFilters.category
+            let methodMatches = analyticsFilters.paymentMethod == nil || item.paymentMethod == analyticsFilters.paymentMethod
+            return categoryMatches && methodMatches
+        }
+    }
+
     var periodAItems: [Item] {
-        items.filter { $0.date >= periodAStart && $0.date <= periodAEnd }
+        itemsAfterInspectorFilters.filter { $0.date >= periodAStart && $0.date <= periodAEnd }
     }
     
     var periodBItems: [Item] {
-        items.filter { $0.date >= periodBStart && $0.date <= periodBEnd }
+        itemsAfterInspectorFilters.filter { $0.date >= periodBStart && $0.date <= periodBEnd }
     }
     
     var periodATotal: Double { periodAItems.reduce(0) { $0 + $1.amount } }
@@ -173,25 +183,25 @@ struct ComparisonView: View {
                             Divider()
                             
                             ForEach(comparisonData, id: \.category) { entry in
-                                                            let primaryAmount = isFlipped ? entry.periodB : entry.periodA
-                                                            let secondaryAmount = isFlipped ? entry.periodA : entry.periodB
+                                let primaryAmount = isFlipped ? entry.periodB : entry.periodA
+                                let secondaryAmount = isFlipped ? entry.periodA : entry.periodB
 
                                 HStack {
                                     Text(entry.category.displayName)
                                         .font(.subheadline)
                                         .frame(maxWidth: .infinity, alignment: .leading)
-                                                                Text("₹\(String(format: "%.0f", primaryAmount))")
+                                    Text("₹\(String(format: "%.0f", primaryAmount))")
                                         .font(.subheadline)
                                         .foregroundStyle(.blue)
                                         .frame(width: 70, alignment: .trailing)
-                                                                Text("₹\(String(format: "%.0f", secondaryAmount))")
+                                    Text("₹\(String(format: "%.0f", secondaryAmount))")
                                         .font(.subheadline)
                                         .foregroundStyle(.orange)
                                         .frame(width: 70, alignment: .trailing)
                                     
-                                                                let change = secondaryAmount > 0
-                                                                    ? ((primaryAmount - secondaryAmount) / secondaryAmount * 100)
-                                                                    : (primaryAmount > 0 ? 100 : 0)
+                                    let change = secondaryAmount > 0
+                                        ? ((primaryAmount - secondaryAmount) / secondaryAmount * 100)
+                                        : (primaryAmount > 0 ? 100 : 0)
                                     Text("\(change >= 0 ? "+" : "")\(String(format: "%.0f", change))%")
                                         .font(.subheadline)
                                         .foregroundStyle(change > 0 ? .red : .green)
@@ -206,6 +216,15 @@ struct ComparisonView: View {
                 }
             }
             .padding(.vertical)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    openWindow(id: "comparison-window")
+                } label: {
+                    Label("Open in New Window", systemImage: "macwindow")
+                }
+            }
         }
     }
 }

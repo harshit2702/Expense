@@ -12,6 +12,7 @@ import TipKit
 
 struct OverviewView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.analyticsFilterOptions) private var analyticsFilters
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @Query private var budgets: [Budget]
     private let overviewTip = OverviewTip()
@@ -33,8 +34,16 @@ struct OverviewView: View {
 
     // MARK: - Computed Data
 
+    private var itemsAfterInspectorFilters: [Item] {
+        items.filter { item in
+            let categoryMatches = analyticsFilters.category == nil || item.category == analyticsFilters.category
+            let methodMatches = analyticsFilters.paymentMethod == nil || item.paymentMethod == analyticsFilters.paymentMethod
+            return categoryMatches && methodMatches
+        }
+    }
+
     private var filteredItems: [Item] {
-        items.filter { $0.date >= startDate && $0.date <= endDate }
+        itemsAfterInspectorFilters.filter { $0.date >= startDate && $0.date <= endDate }
     }
 
     private var totalSpent: Double { filteredItems.reduce(0) { $0 + $1.amount } }
@@ -55,7 +64,7 @@ struct OverviewView: View {
         let duration = endDate.timeIntervalSince(startDate)
         let prevStart = startDate.addingTimeInterval(-duration)
         let prevEnd = startDate
-        return items.filter { $0.date >= prevStart && $0.date < prevEnd }.reduce(0) { $0 + $1.amount }
+        return itemsAfterInspectorFilters.filter { $0.date >= prevStart && $0.date < prevEnd }.reduce(0) { $0 + $1.amount }
     }
 
     private var periodChange: Double {
@@ -67,7 +76,7 @@ struct OverviewView: View {
     private var topOverspender: (category: String, overBy: Double)? {
         let startOfMonth = Calendar.current.dateInterval(of: .month, for: Date())!.start
         for budget in budgets {
-            let spent = items.filter { $0.category == budget.category && $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
+            let spent = itemsAfterInspectorFilters.filter { $0.category == budget.category && $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
             if spent > budget.monthlyLimit {
                 return (budget.category.displayName, spent - budget.monthlyLimit)
             }
@@ -80,7 +89,7 @@ struct OverviewView: View {
         let totalBudget = budgets.reduce(0) { $0 + $1.monthlyLimit }
         guard totalBudget > 0 else { return 0 }
         let startOfMonth = Calendar.current.dateInterval(of: .month, for: Date())!.start
-        let monthSpent = items.filter { $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
+        let monthSpent = itemsAfterInspectorFilters.filter { $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
         return (monthSpent / totalBudget) * 100
     }
 

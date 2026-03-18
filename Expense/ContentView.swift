@@ -176,11 +176,7 @@ struct RegularEntriesSplitView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            List([AppSection.entry], id: \.self, selection: $selectedSection) { section in
-                Label("Entries", systemImage: section.icon)
-            }
-            .listStyle(.sidebar)
-            .navigationTitle("Expense")
+            EntriesSidebarView(selectedSection: $selectedSection)
         } content: {
             EntryListView(selectedItem: $selectedItem, showsNavigationDestination: false)
                 .navigationTitle("Entries")
@@ -313,26 +309,123 @@ struct AnalyticsInspectorView: View {
     }
 }
 
-struct AnalyticsSectionList: View {
-    @Binding var selectedSection: DataViewSection?
+struct EntriesSidebarView: View {
+    @Binding var selectedSection: AppSection?
+    @Query(sort: \Item.date, order: .reverse) private var items: [Item]
+
+    private var cal: Calendar { Calendar.current }
+
+    private var todayTotal: Double {
+        let start = cal.startOfDay(for: Date())
+        return items.filter { $0.date >= start }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var weekTotal: Double {
+        let ago = cal.date(byAdding: .day, value: -7, to: Date())!
+        return items.filter { $0.date >= ago }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var monthTotal: Double {
+        let start = cal.dateInterval(of: .month, for: Date())!.start
+        return items.filter { $0.date >= start }.reduce(0) { $0 + $1.amount }
+    }
 
     var body: some View {
-        List(DataViewSection.allCases, selection: $selectedSection) { section in
-            HStack(spacing: 14) {
-                Image(systemName: section.icon)
-                    .font(.title2)
-                    .foregroundStyle(.blue)
-                    .frame(width: 36)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(section.displayName)
-                        .font(.headline)
-                    Text(section.description)
-                        .font(.caption)
+        List(selection: $selectedSection) {
+            Section {
+                Label("Entries", systemImage: AppSection.entry.icon)
+                    .tag(AppSection.entry)
+            }
+            Section("Recent Insights") {
+                LabeledContent("Today") {
+                    Text("₹\(String(format: "%.0f", todayTotal))")
+                        .foregroundStyle(todayTotal > 0 ? .primary : .secondary)
+                }
+                .selectionDisabled()
+                LabeledContent("Last 7 Days") {
+                    Text("₹\(String(format: "%.0f", weekTotal))")
+                }
+                .selectionDisabled()
+                LabeledContent("This Month") {
+                    Text("₹\(String(format: "%.0f", monthTotal))")
+                        .fontWeight(.semibold)
+                }
+                .selectionDisabled()
+                LabeledContent("All Entries") {
+                    Text("\(items.count)")
                         .foregroundStyle(.secondary)
                 }
+                .selectionDisabled()
             }
-            .padding(.vertical, 6)
-            .tag(section)
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Expense")
+    }
+}
+
+struct AnalyticsSectionList: View {
+    @Binding var selectedSection: DataViewSection?
+    @Query(sort: \Item.date, order: .reverse) private var items: [Item]
+
+    private var cal: Calendar { Calendar.current }
+
+    private var monthTotal: Double {
+        let start = cal.dateInterval(of: .month, for: Date())!.start
+        return items.filter { $0.date >= start }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var prevMonthTotal: Double {
+        let startOfMonth = cal.dateInterval(of: .month, for: Date())!.start
+        let startOfPrev = cal.date(byAdding: .month, value: -1, to: startOfMonth)!
+        return items.filter { $0.date >= startOfPrev && $0.date < startOfMonth }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var monthOverMonthChange: Double? {
+        guard prevMonthTotal > 0 else { return nil }
+        return ((monthTotal - prevMonthTotal) / prevMonthTotal) * 100
+    }
+
+    var body: some View {
+        List(selection: $selectedSection) {
+            ForEach(DataViewSection.allCases) { section in
+                HStack(spacing: 14) {
+                    Image(systemName: section.icon)
+                        .font(.title2)
+                        .foregroundStyle(.blue)
+                        .frame(width: 36)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(section.displayName)
+                            .font(.headline)
+                        Text(section.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 6)
+                .tag(section)
+            }
+            Section("Spending Snapshot") {
+                LabeledContent("This Month") {
+                    Text("₹\(String(format: "%.0f", monthTotal))")
+                        .fontWeight(.semibold)
+                }
+                .selectionDisabled()
+                if prevMonthTotal > 0 {
+                    LabeledContent("Last Month") {
+                        Text("₹\(String(format: "%.0f", prevMonthTotal))")
+                            .foregroundStyle(.secondary)
+                    }
+                    .selectionDisabled()
+                }
+                if let change = monthOverMonthChange {
+                    LabeledContent("M/M Change") {
+                        Text("\(change >= 0 ? "+" : "")\(String(format: "%.1f", change))%")
+                            .foregroundStyle(change > 0 ? .red : .green)
+                            .fontWeight(.medium)
+                    }
+                    .selectionDisabled()
+                }
+            }
         }
         .listStyle(.insetGrouped)
     }
@@ -367,6 +460,8 @@ struct AnalyticsDetailView: View {
 
 struct EntryListView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var commandCenter: AppCommandCenter
+    @Environment(\.openWindow) private var openWindow
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @Query private var DCS: [DailyCategorySummary]
     @Query private var MCS: [MonthlyCategorySummary]
@@ -393,6 +488,7 @@ struct EntryListView: View {
     @State private var showImportResult = false
     @State private var importFailures: [ImportFailure] = []
     @State private var editingItem: Item?
+    @FocusState private var isSearchFocused: Bool
     
     private let searchTip = SearchExpensesTip()
 
@@ -436,6 +532,14 @@ struct EntryListView: View {
                                     Label("Edit", systemImage: "pencil")
                                 }
                                 .tint(.blue)
+
+                                Button {
+                                    commandCenter.selectedEntryID = item.id
+                                    openWindow(id: "entry-detail", value: item.id)
+                                } label: {
+                                    Label("Open Window", systemImage: "macwindow")
+                                }
+                                .tint(.indigo)
                             }
                     }
                     .onDelete { offsets in deleteItems(from: group.items, at: offsets) }
@@ -450,8 +554,33 @@ struct EntryListView: View {
             ItemInfo(item: item)
         }
         .searchable(text: $searchText, prompt: "Search expenses…")
+        .applySearchFocus($isSearchFocused)
         .onChange(of: searchText) { _, newValue in
             if !newValue.isEmpty { SearchExpensesTip.hasSearched = true }
+        }
+        .onChange(of: commandCenter.addExpenseCommandTick) { _, _ in
+            isPresented = true
+        }
+        .onChange(of: commandCenter.importCSVCommandTick) { _, _ in
+            showingImporter = true
+        }
+        .onChange(of: commandCenter.focusSearchCommandTick) { _, _ in
+            isSearchFocused = true
+        }
+        .onChange(of: commandCenter.editSelectedCommandTick) { _, _ in
+            guard let selectedID = commandCenter.selectedEntryID,
+                  let selected = items.first(where: { $0.id == selectedID }) else { return }
+            editingItem = selected
+        }
+        .onChange(of: commandCenter.deleteSelectedCommandTick) { _, _ in
+            guard let selectedID = commandCenter.selectedEntryID,
+                  let selected = items.first(where: { $0.id == selectedID }) else { return }
+            ExpenseDataManager.deleteItemAndUpdateSummaries(item: selected, dailySummaries: DCS, monthlySummaries: MCS, context: modelContext)
+            commandCenter.selectedEntryID = nil
+            if selectedItemBinding?.wrappedValue?.id == selectedID {
+                selectedItemBinding?.wrappedValue = nil
+            }
+            deleteTrigger.toggle()
         }
         .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.5), trigger: deleteTrigger)
         .toolbar {
@@ -541,9 +670,13 @@ struct EntryListView: View {
             NavigationLink(value: item) {
                 EntryRow(item: item)
             }
+            .simultaneousGesture(TapGesture().onEnded {
+                commandCenter.selectedEntryID = item.id
+            })
         } else {
             Button {
                 selectedItemBinding?.wrappedValue = item
+                commandCenter.selectedEntryID = item.id
             } label: {
                 EntryRow(item: item)
             }
@@ -567,6 +700,9 @@ struct EntryListView: View {
                 ExpenseDataManager.deleteItemAndUpdateSummaries(item: item, dailySummaries: DCS, monthlySummaries: MCS, context: modelContext)
                 if selectedItemBinding?.wrappedValue?.id == item.id {
                     selectedItemBinding?.wrappedValue = nil
+                }
+                if commandCenter.selectedEntryID == item.id {
+                    commandCenter.selectedEntryID = nil
                 }
             }
             deleteTrigger.toggle()
@@ -878,6 +1014,17 @@ private extension Collection {
     }
 }
 
+private extension View {
+    @ViewBuilder
+    func applySearchFocus(_ focused: FocusState<Bool>.Binding) -> some View {
+        if #available(iOS 18.0, *) {
+            self.searchFocused(focused)
+        } else {
+            self
+        }
+    }
+}
+
 // MARK: - Entry Row (clean, informative)
 
 struct EntryRow: View {
@@ -1166,5 +1313,6 @@ struct FeatureRow: View {
 
 #Preview {
     ContentView()
+    .environmentObject(AppCommandCenter())
         .modelContainer(for: Item.self, inMemory: true)
 }
