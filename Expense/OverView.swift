@@ -15,6 +15,7 @@ struct OverviewView: View {
     @Environment(\.analyticsFilterOptions) private var analyticsFilters
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @Query private var budgets: [Budget]
+    @Query private var monthlyBudgetSettings: [MonthlyBudgetSettings]
     private let overviewTip = OverviewTip()
 
     @State private var selectedCategoryAmount: Double?
@@ -50,7 +51,7 @@ struct OverviewView: View {
 
     private var categoryAmount: [(category: ExpenseCategory, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
         let amountDict = filteredItems.reduce(into: [ExpenseCategory: Double]()) { $0[$1.category, default: 0] += $1.amount }
-        let sorted = amountDict.keys.sorted()
+        let sorted = amountDict.sorted { $0.value > $1.value }.map { $0.key }
         var cum: Double = 0
         return sorted.map { cat in
             let amt = amountDict[cat]!
@@ -74,23 +75,30 @@ struct OverviewView: View {
 
     // Top overspending category vs budget
     private var topOverspender: (category: String, overBy: Double)? {
-        let startOfMonth = Calendar.current.dateInterval(of: .month, for: Date())!.start
-        for budget in budgets {
-            let spent = itemsAfterInspectorFilters.filter { $0.category == budget.category && $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
-            if spent > budget.monthlyLimit {
+        let spendByCategory = ExpenseDataManager.monthSpendByCategory(from: itemsAfterInspectorFilters)
+        return budgets
+            .compactMap { budget -> (category: String, overBy: Double)? in
+                let spent = spendByCategory[budget.category] ?? 0
+                guard spent > budget.monthlyLimit else { return nil }
                 return (budget.category.displayName, spent - budget.monthlyLimit)
             }
-        }
-        return nil
+            .max(by: { $0.overBy < $1.overBy })
     }
 
     // Budget risk this month
     private var budgetUsedPercent: Double {
-        let totalBudget = budgets.reduce(0) { $0 + $1.monthlyLimit }
-        guard totalBudget > 0 else { return 0 }
-        let startOfMonth = Calendar.current.dateInterval(of: .month, for: Date())!.start
-        let monthSpent = itemsAfterInspectorFilters.filter { $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
-        return (monthSpent / totalBudget) * 100
+        let configuredTotal = monthlyBudgetSettings.first?.monthlyTotalBudget
+        if let configuredTotal, configuredTotal > 0 {
+            return ExpenseDataManager.monthlyBudgetUsagePercent(
+                monthlyTotalBudget: configuredTotal,
+                items: itemsAfterInspectorFilters
+            )
+        }
+
+        let categoryLimitTotal = ExpenseDataManager.categoryBudgetTotal(from: budgets)
+        guard categoryLimitTotal > 0 else { return 0 }
+        let monthSpent = ExpenseDataManager.monthSpend(from: itemsAfterInspectorFilters)
+        return (monthSpent / categoryLimitTotal) * 100
     }
 
     // MARK: - Body
@@ -133,7 +141,7 @@ struct OverviewView: View {
                             Text("Budget Used")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            if budgets.isEmpty {
+                            if budgets.isEmpty && monthlyBudgetSettings.first?.monthlyTotalBudget == nil {
                                 Text("—")
                                     .font(.title3)
                                     .foregroundStyle(.secondary)

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import Charts
 import TipKit
 
 struct BudgetView: View {
@@ -15,9 +16,11 @@ struct BudgetView: View {
     @Query private var monthlyBudgetSettings: [MonthlyBudgetSettings]
     @Query(sort: \Item.date, order: .reverse) private var items: [Item]
     @State private var showAddBudget = false
-    @State private var monthlyTotalBudgetInput = ""
+    @State private var showMonthlyBudgetSheet = false
+    @State private var monthlyBudgetInput = ""
     @State private var showMonthlyBudgetAlert = false
     @State private var deleteTrigger = false
+    @State private var rebalanceTrigger = false
     private let budgetTip = SetBudgetTip()
     
     var body: some View {
@@ -25,26 +28,31 @@ struct BudgetView: View {
             TipView(budgetTip)
 
             SwiftUI.Section("Total Monthly Budget") {
-                TextField("Set monthly total budget (₹)", text: $monthlyTotalBudgetInput)
-                    .keyboardType(.decimalPad)
+                HStack(spacing: 12) {
+                    MetricChip(
+                        title: "Configured",
+                        value: monthlySettings.monthlyTotalBudget.map { "₹\(String(format: "%.0f", $0))" } ?? "Not set",
+                        tone: .blue
+                    )
+                    MetricChip(
+                        title: "Spent",
+                        value: "₹\(String(format: "%.0f", monthSpentOverall))",
+                        tone: .orange
+                    )
+                    MetricChip(
+                        title: "Remaining",
+                        value: monthlyRemainingText,
+                        tone: monthRemainingValue.map { $0 < 0 ? .red : .green } ?? .secondary
+                    )
+                }
+                .frame(maxWidth: .infinity)
 
-                HStack {
-                    Text("Current")
-                    Spacer()
-                    if let total = monthlySettings.monthlyTotalBudget {
-                        Text("₹\(String(format: "%.0f", total))")
-                            .fontWeight(.bold)
-                    } else {
-                        Text("Not set")
-                            .foregroundStyle(.secondary)
-                    }
+                Button("Set Monthly Total") {
+                    monthlyBudgetInput = monthlySettings.monthlyTotalBudget.map { String(format: "%.0f", $0) } ?? ""
+                    showMonthlyBudgetSheet = true
                 }
 
-                Button("Save Monthly Total") {
-                    saveMonthlyTotalBudget()
-                }
-
-                Text("This is separate from category budgets below. Home uses this total budget to calculate budget left.")
+                Text("Set a monthly total to unlock full budget health tracking and pacing guidance.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -78,6 +86,19 @@ struct BudgetView: View {
                         Text("₹\(String(format: "%.0f", remaining))")
                             .fontWeight(.bold)
                             .foregroundStyle(remaining < 0 ? .red : .green)
+                    }
+
+                    if !allocationChartData.isEmpty {
+                        Chart(allocationChartData) { entry in
+                            BarMark(
+                                x: .value("Category", entry.category),
+                                y: .value("Amount", entry.amount)
+                            )
+                            .position(by: .value("Type", entry.type))
+                            .foregroundStyle(by: .value("Type", entry.type))
+                        }
+                        .chartLegend(position: .bottom)
+                        .frame(height: 220)
                     }
                 }
                 
@@ -132,11 +153,20 @@ struct BudgetView: View {
         .sheet(isPresented: $showAddBudget) {
             AddBudgetView()
         }
+        .sheet(isPresented: $showMonthlyBudgetSheet) {
+            MonthlyBudgetSheet(
+                monthlyTotalBudgetInput: $monthlyBudgetInput,
+                onSave: {
+                    saveMonthlyTotalBudget()
+                    showMonthlyBudgetSheet = false
+                },
+                onCancel: {
+                    showMonthlyBudgetSheet = false
+                }
+            )
+        }
         .onAppear {
             ensureMonthlySettingsExists()
-            if let total = monthlySettings.monthlyTotalBudget {
-                monthlyTotalBudgetInput = String(format: "%.0f", total)
-            }
         }
         .alert("Invalid Monthly Total", isPresented: $showMonthlyBudgetAlert) {
             Button("OK", role: .cancel) { }
@@ -144,6 +174,7 @@ struct BudgetView: View {
             Text("Enter a valid amount greater than 0. Leave empty only if you want to clear the total budget.")
         }
         .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.5), trigger: deleteTrigger)
+        .sensoryFeedback(.success, trigger: rebalanceTrigger)
     }
 
     private var monthlySettings: MonthlyBudgetSettings {
@@ -159,7 +190,7 @@ struct BudgetView: View {
     }
 
     private func saveMonthlyTotalBudget() {
-        let trimmed = monthlyTotalBudgetInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = monthlyBudgetInput.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             monthlySettings.monthlyTotalBudget = nil
             monthlySettings.updatedAt = Date()
@@ -178,19 +209,41 @@ struct BudgetView: View {
     }
     
     private var totalBudget: Double {
-        budgets.reduce(0) { $0 + $1.monthlyLimit }
+        ExpenseDataManager.categoryBudgetTotal(from: budgets)
     }
     
     private var totalSpent: Double {
-        budgets.reduce(0) { $0 + currentMonthSpending(for: $1.category) }
+        ExpenseDataManager.budgetedCategorySpend(from: items, budgets: budgets)
+    }
+
+    private var monthSpentOverall: Double {
+        ExpenseDataManager.monthSpend(from: items)
+    }
+
+    private var currentMonthSpendByCategory: [ExpenseCategory: Double] {
+        ExpenseDataManager.monthSpendByCategory(from: items)
+    }
+
+    private var monthRemainingValue: Double? {
+        guard let monthlyTotalBudget = monthlySettings.monthlyTotalBudget else { return nil }
+        return monthlyTotalBudget - monthSpentOverall
+    }
+
+    private var monthlyRemainingText: String {
+        guard let remaining = monthRemainingValue else { return "—" }
+        return "₹\(String(format: "%.0f", remaining))"
     }
     
     private func currentMonthSpending(for category: ExpenseCategory) -> Double {
-        let now = Date()
-        let startOfMonth = Calendar.current.dateInterval(of: .month, for: now)!.start
-        return items
-            .filter { $0.category == category && $0.date >= startOfMonth }
-            .reduce(0) { $0 + $1.amount }
+        currentMonthSpendByCategory[category] ?? 0
+    }
+
+    private func gapMessage(for gap: Double) -> String {
+        if abs(gap) < 0.5 { return "Category limits exactly match your monthly total." }
+        if gap > 0 {
+            return "₹\(String(format: "%.0f", gap)) is unallocated across categories."
+        }
+        return "Category limits exceed monthly total by ₹\(String(format: "%.0f", abs(gap)))."
     }
     
     private func deleteBudgets(offsets: IndexSet) {
@@ -199,6 +252,26 @@ struct BudgetView: View {
         }
         try? modelContext.save()
         deleteTrigger.toggle()
+    }
+
+    private func rebalanceCategoryBudgets(to targetTotal: Double) {
+        guard !budgets.isEmpty, targetTotal > 0 else { return }
+
+        let currentTotal = totalBudget
+        if currentTotal <= 0 {
+            let evenLimit = targetTotal / Double(budgets.count)
+            for budget in budgets {
+                budget.monthlyLimit = evenLimit
+            }
+        } else {
+            let ratio = targetTotal / currentTotal
+            for budget in budgets {
+                budget.monthlyLimit *= ratio
+            }
+        }
+
+        try? modelContext.save()
+        rebalanceTrigger.toggle()
     }
 
     // MARK: - Coaching Nudges
@@ -252,13 +325,57 @@ struct BudgetView: View {
 
         return nudges
     }
+
+    private var allocationChartData: [BudgetAllocationDatum] {
+        budgets.flatMap { budget in
+            [
+                BudgetAllocationDatum(category: budget.category.displayName, type: "Limit", amount: budget.monthlyLimit),
+                BudgetAllocationDatum(category: budget.category.displayName, type: "Spent", amount: currentMonthSpending(for: budget.category))
+            ]
+        }
+    }
+}
+
+private struct BudgetAllocationDatum: Identifiable {
+    let id = UUID()
+    let category: String
+    let type: String
+    let amount: Double
+}
+
+private struct MetricChip: View {
+    let title: String
+    let value: String
+    let tone: Color
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.footnote)
+                .fontWeight(.semibold)
+                .foregroundStyle(tone)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
 }
 
 // MARK: - Budget Row
 
 struct BudgetRow: View {
-    let budget: Budget
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var budget: Budget
     let spending: Double
+    @State private var isEditingLimit = false
+    @State private var limitInput = ""
+    @State private var showInvalidLimitAlert = false
+    @State private var saveTrigger = false
     
     var progress: Double {
         guard budget.monthlyLimit > 0 else { return 0 }
@@ -275,9 +392,36 @@ struct BudgetRow: View {
                 Text(budget.category.displayName)
                     .font(.headline)
                 Spacer()
-                Text("₹\(String(format: "%.0f", spending)) / ₹\(String(format: "%.0f", budget.monthlyLimit))")
-                    .font(.subheadline)
-                    .foregroundStyle(isOverBudget ? .red : .secondary)
+                if isEditingLimit {
+                    TextField("Limit", text: $limitInput)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 90)
+
+                    Button("Save") {
+                        saveEditedLimit()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Cancel") {
+                        cancelEditing()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                } else {
+                    Text("₹\(String(format: "%.0f", spending)) / ₹\(String(format: "%.0f", budget.monthlyLimit))")
+                        .font(.subheadline)
+                        .foregroundStyle(isOverBudget ? .red : .secondary)
+
+                    Button {
+                        startEditing()
+                    } label: {
+                        Image(systemName: "pencil.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
             }
             
             ProgressView(value: progress)
@@ -294,6 +438,38 @@ struct BudgetRow: View {
             }
         }
         .padding(.vertical, 4)
+        .alert("Invalid Limit", isPresented: $showInvalidLimitAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Enter a valid amount greater than 0.")
+        }
+        .sensoryFeedback(.success, trigger: saveTrigger)
+        .onAppear {
+            limitInput = String(format: "%.0f", budget.monthlyLimit)
+        }
+    }
+
+    private func startEditing() {
+        limitInput = String(format: "%.0f", budget.monthlyLimit)
+        isEditingLimit = true
+    }
+
+    private func cancelEditing() {
+        limitInput = String(format: "%.0f", budget.monthlyLimit)
+        isEditingLimit = false
+    }
+
+    private func saveEditedLimit() {
+        let trimmed = limitInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Double(trimmed), value > 0 else {
+            showInvalidLimitAlert = true
+            return
+        }
+
+        budget.monthlyLimit = value
+        try? modelContext.save()
+        saveTrigger.toggle()
+        isEditingLimit = false
     }
 }
 
@@ -367,6 +543,56 @@ struct AddBudgetView: View {
                 }
             }
             .sensoryFeedback(.success, trigger: saveTrigger)
+        }
+    }
+}
+
+// MARK: - Monthly Budget Sheet
+
+struct MonthlyBudgetSheet: View {
+    @Binding var monthlyTotalBudgetInput: String
+    var onSave: () -> Void
+    var onCancel: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var showAlert = false
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                SwiftUI.Section("Monthly Total Budget") {
+                    TextField("Amount in ₹", text: $monthlyTotalBudgetInput)
+                        .keyboardType(.decimalPad)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                }
+                
+                SwiftUI.Section {
+                    Text("Enter your total monthly budget amount. This will help track your overall spending and remaining budget for the month.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Set Monthly Total")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave()
+                        dismiss()
+                    }
+                }
+            }
+            .alert("Invalid Amount", isPresented: $showAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Please enter a valid budget amount greater than 0.")
+            }
         }
     }
 }

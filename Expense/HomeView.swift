@@ -22,8 +22,7 @@ struct HomeView: View {
     // MARK: Computed Data
 
     private var currentMonthItems: [Item] {
-        let start = Calendar.current.dateInterval(of: .month, for: Date())!.start
-        return items.filter { $0.date >= start }
+        ExpenseDataManager.currentMonthItems(from: items)
     }
 
     private var lastMonthItems: [Item] {
@@ -44,7 +43,7 @@ struct HomeView: View {
     private var monthlyTotalBudget: Double? { monthlyBudgetSettings.first?.monthlyTotalBudget }
     private var budgetRemaining: Double? {
         guard let monthlyTotalBudget else { return nil }
-        return monthlyTotalBudget - thisMonthTotal
+        return monthlyTotalBudget - ExpenseDataManager.monthSpend(from: items)
     }
 
     private var categoryBreakdown: [(category: ExpenseCategory, amount: Double)] {
@@ -83,7 +82,7 @@ struct HomeView: View {
 
     private var budgetRiskLevel: String {
         guard let monthlyTotalBudget, monthlyTotalBudget > 0 else { return "Monthly total not set" }
-        let used = thisMonthTotal / monthlyTotalBudget
+        let used = ExpenseDataManager.monthlyBudgetUsagePercent(monthlyTotalBudget: monthlyTotalBudget, items: items) / 100
         if used > 1.0 { return "Over budget" }
         if used > 0.8 { return "At risk" }
         return "On track"
@@ -91,7 +90,7 @@ struct HomeView: View {
 
     private var budgetRiskColor: Color {
         guard let monthlyTotalBudget, monthlyTotalBudget > 0 else { return .secondary }
-        let used = thisMonthTotal / monthlyTotalBudget
+        let used = ExpenseDataManager.monthlyBudgetUsagePercent(monthlyTotalBudget: monthlyTotalBudget, items: items) / 100
         if used > 1.0 { return .red }
         if used > 0.8 { return .orange }
         return .green
@@ -335,12 +334,7 @@ struct HomeView: View {
     // MARK: Helpers
 
     private func daysRemainingInMonth() -> Int {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        guard let range = cal.range(of: .day, in: .month, for: today) else { return 0 }
-        let lastDay = range.upperBound - 1
-        let currentDay = cal.component(.day, from: today)
-        return max(lastDay - currentDay, 0)
+        ExpenseDataManager.daysRemainingInMonth()
     }
 }
 

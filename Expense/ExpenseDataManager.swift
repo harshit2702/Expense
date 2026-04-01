@@ -101,4 +101,74 @@ struct ExpenseDataManager {
             print("Failed to save data: \(error)")
         }
     }
+
+    // MARK: - Shared Analytics and Budget Metrics
+
+    static func startOfMonth(for date: Date = Date(), calendar: Calendar = .current) -> Date {
+        calendar.dateInterval(of: .month, for: date)?.start ?? date
+    }
+
+    static func currentMonthItems(
+        from items: [Item],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [Item] {
+        let monthStart = startOfMonth(for: referenceDate, calendar: calendar)
+        return items.filter { $0.date >= monthStart }
+    }
+
+    static func monthSpend(
+        from items: [Item],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Double {
+        currentMonthItems(from: items, referenceDate: referenceDate, calendar: calendar)
+            .reduce(0) { $0 + $1.amount }
+    }
+
+    static func monthSpendByCategory(
+        from items: [Item],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [ExpenseCategory: Double] {
+        let monthItems = currentMonthItems(from: items, referenceDate: referenceDate, calendar: calendar)
+        return monthItems.reduce(into: [ExpenseCategory: Double]()) { partialResult, item in
+            partialResult[item.category, default: 0] += item.amount
+        }
+    }
+
+    static func categoryBudgetTotal(from budgets: [Budget]) -> Double {
+        budgets.reduce(0) { $0 + $1.monthlyLimit }
+    }
+
+    static func budgetedCategorySpend(
+        from items: [Item],
+        budgets: [Budget],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Double {
+        let spendByCategory = monthSpendByCategory(from: items, referenceDate: referenceDate, calendar: calendar)
+        return budgets.reduce(0) { partialResult, budget in
+            partialResult + (spendByCategory[budget.category] ?? 0)
+        }
+    }
+
+    static func monthlyBudgetUsagePercent(
+        monthlyTotalBudget: Double?,
+        items: [Item],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Double {
+        guard let monthlyTotalBudget, monthlyTotalBudget > 0 else { return 0 }
+        let spent = monthSpend(from: items, referenceDate: referenceDate, calendar: calendar)
+        return (spent / monthlyTotalBudget) * 100
+    }
+
+    static func daysRemainingInMonth(from date: Date = Date(), calendar: Calendar = .current) -> Int {
+        let today = calendar.startOfDay(for: date)
+        guard let range = calendar.range(of: .day, in: .month, for: today) else { return 0 }
+        let currentDay = calendar.component(.day, from: today)
+        let lastDay = range.upperBound - 1
+        return max(lastDay - currentDay, 0)
+    }
 }

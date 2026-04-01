@@ -13,6 +13,7 @@ import TipKit
 struct TrendsView: View {
     @Environment(\.analyticsFilterOptions) private var analyticsFilters
     @Query(sort: \Item.date) private var items: [Item]
+    @Query private var monthlyBudgetSettings: [MonthlyBudgetSettings]
     
     @State private var trendPeriod: TrendPeriod = .last30Days
     private let trendsTip = ViewTrendsTip()
@@ -47,6 +48,12 @@ struct TrendsView: View {
 
     var filteredItems: [Item] {
         itemsAfterInspectorFilters.filter { $0.date >= startDate }
+    }
+
+    var previousPeriodItems: [Item] {
+        let end = startDate
+        let previousStart = Calendar.current.date(byAdding: .day, value: -trendPeriod.days, to: end) ?? end
+        return itemsAfterInspectorFilters.filter { $0.date >= previousStart && $0.date < end }
     }
     
     var dailyTotals: [(date: Date, amount: Double)] {
@@ -100,6 +107,100 @@ struct TrendsView: View {
     
     var totalSpend: Double {
         filteredItems.reduce(0) { $0 + $1.amount }
+    }
+
+    var previousPeriodTotal: Double {
+        previousPeriodItems.reduce(0) { $0 + $1.amount }
+    }
+
+    var periodDeltaAmount: Double {
+        totalSpend - previousPeriodTotal
+    }
+
+    var periodDeltaPercent: Double? {
+        guard previousPeriodTotal > 0 else { return nil }
+        return (periodDeltaAmount / previousPeriodTotal) * 100
+    }
+
+    var comparisonInsightText: String {
+        guard let percent = periodDeltaPercent else {
+            return "Not enough previous-period data for a full comparison."
+        }
+        if abs(percent) < 2 {
+            return "Spending pace is almost unchanged vs previous period."
+        }
+        if percent > 0 {
+            return "Spending pace is increasing vs previous period."
+        }
+        return "Spending pace is improving vs previous period."
+    }
+
+    var categoryMomentum: [(category: ExpenseCategory, current: Double, previous: Double, deltaPct: Double)] {
+        let currentTotals = filteredItems.reduce(into: [ExpenseCategory: Double]()) { result, item in
+            result[item.category, default: 0] += item.amount
+        }
+        let previousTotals = previousPeriodItems.reduce(into: [ExpenseCategory: Double]()) { result, item in
+            result[item.category, default: 0] += item.amount
+        }
+
+        return currentTotals
+            .map { category, current in
+                let previous = previousTotals[category] ?? 0
+                let deltaPct: Double
+                if previous > 0 {
+                    deltaPct = ((current - previous) / previous) * 100
+                } else {
+                    deltaPct = current > 0 ? 100 : 0
+                }
+                return (category: category, current: current, previous: previous, deltaPct: deltaPct)
+            }
+            .sorted { abs($0.deltaPct) > abs($1.deltaPct) }
+            .prefix(5)
+            .map { $0 }
+    }
+
+    var projectedMonthSpend: Double {
+        let monthItems = ExpenseDataManager.currentMonthItems(from: itemsAfterInspectorFilters)
+        let daysElapsed = max(Calendar.current.component(.day, from: Date()), 1)
+        let daysInMonth = Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30
+        let monthSpent = monthItems.reduce(0) { $0 + $1.amount }
+        let dailyRunRate = monthSpent / Double(daysElapsed)
+        return dailyRunRate * Double(daysInMonth)
+    }
+
+    var monthlyBudgetDeltaText: String {
+        guard let totalBudget = monthlyBudgetSettings.first?.monthlyTotalBudget, totalBudget > 0 else {
+            return "Set monthly total budget to compare forecast."
+        }
+        let delta = projectedMonthSpend - totalBudget
+        if abs(delta) < 0.5 {
+            return "Forecast is aligned with your monthly total budget."
+        }
+        if delta > 0 {
+            return "Forecast is ₹\(String(format: "%.0f", delta)) above budget."
+        }
+        return "Forecast is ₹\(String(format: "%.0f", abs(delta))) below budget."
+    }
+
+    var weekdaySpending: [(day: String, amount: Double)] {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        let symbols = formatter.shortWeekdaySymbols ?? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+        // Calendar weekday indexes are 1...7 with Sunday first.
+        var totals = Array(repeating: 0.0, count: 7)
+        filteredItems.forEach { item in
+            let weekday = Calendar.current.component(.weekday, from: item.date)
+            totals[max(0, min(6, weekday - 1))] += item.amount
+        }
+
+        return (0..<7).map { index in
+            (day: symbols[index], amount: totals[index])
+        }
+    }
+
+    var topWeekday: (day: String, amount: Double)? {
+        weekdaySpending.max(by: { $0.amount < $1.amount })
     }
     
     // Day-over-day spending growth
@@ -161,6 +262,52 @@ struct TrendsView: View {
                             .fontWeight(.medium)
                     }
                     .padding(.horizontal)
+
+                    GroupBox("Period Comparison") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Current")
+                                Spacer()
+                                Text("₹\(String(format: "%.0f", totalSpend))")
+                                    .fontWeight(.semibold)
+                            }
+
+                            HStack {
+                                Text("Previous")
+                                Spacer()
+                                Text("₹\(String(format: "%.0f", previousPeriodTotal))")
+                                    .fontWeight(.semibold)
+                            }
+
+                            Divider()
+
+                            HStack {
+                                Text("Delta")
+                                Spacer()
+                                Text("₹\(String(format: "%.0f", abs(periodDeltaAmount)))")
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(periodDeltaAmount > 0 ? .red : periodDeltaAmount < 0 ? .green : .secondary)
+                            }
+
+                            if let percent = periodDeltaPercent {
+                                HStack {
+                                    Text("Delta %")
+                                    Spacer()
+                                    Label(
+                                        "\(String(format: "%.0f", abs(percent)))%",
+                                        systemImage: percent >= 0 ? "arrow.up.right" : "arrow.down.right"
+                                    )
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(percent >= 0 ? .red : .green)
+                                }
+                            }
+
+                            Text(comparisonInsightText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal)
                     
                     // Daily spending trend chart
                     GroupBox("Daily Spending") {
@@ -195,6 +342,32 @@ struct TrendsView: View {
                         .padding(.top, 4)
                     }
                     .padding(.horizontal)
+
+                    GroupBox("Weekday Heatmap") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Chart(weekdaySpending, id: \.day) { entry in
+                                BarMark(
+                                    x: .value("Weekday", entry.day),
+                                    y: .value("Amount", entry.amount)
+                                )
+                                .foregroundStyle(by: .value("Amount", entry.amount))
+                                .cornerRadius(4)
+                            }
+                            .chartForegroundStyleScale(
+                                domain: [0, max(weekdaySpending.map(\.amount).max() ?? 1, 1)],
+                                range: [Color.green.opacity(0.35), Color.orange, Color.red]
+                            )
+                            .chartLegend(.hidden)
+                            .frame(height: 180)
+
+                            if let busiest = topWeekday {
+                                Text("Highest weekday spend: \(busiest.day) (₹\(String(format: "%.0f", busiest.amount))).")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                     
                     // Category spending distribution
                     GroupBox("Top Categories") {
@@ -219,6 +392,52 @@ struct TrendsView: View {
                                         .frame(width: 60, alignment: .trailing)
                                 }
                             }
+                        }
+                    }
+                    .padding(.horizontal)
+
+                    GroupBox("Category Momentum") {
+                        VStack(spacing: 10) {
+                            if categoryMomentum.isEmpty {
+                                Text("Not enough data to compare with previous period.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(categoryMomentum, id: \.category) { entry in
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(entry.category.displayName)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                            Text("Now ₹\(String(format: "%.0f", entry.current)) vs Prev ₹\(String(format: "%.0f", entry.previous))")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        let up = entry.deltaPct >= 0
+                                        Label("\(String(format: "%.0f", abs(entry.deltaPct)))%", systemImage: up ? "arrow.up.right" : "arrow.down.right")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(up ? .red : .green)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+
+                    GroupBox("Month-End Forecast") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Projected Spend")
+                                Spacer()
+                                Text("₹\(String(format: "%.0f", projectedMonthSpend))")
+                                    .fontWeight(.bold)
+                            }
+
+                            Text(monthlyBudgetDeltaText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .padding(.horizontal)
