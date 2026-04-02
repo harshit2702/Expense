@@ -108,162 +108,150 @@ struct OverviewView: View {
             VStack(spacing: 20) {
                 TipView(overviewTip)
                     .padding(.horizontal)
-
-                // Period Picker
-                Picker("Period", selection: $dateRangeType) {
-                    ForEach(DateRangeType.allCases) { range in
-                        Text(range.rawValue).tag(range)
-                    }
-                }
-                .pickerStyle(.segmented)
+                DateRangeSelector(
+                    selection: $dateRangeType,
+                    startDate: $startDate,
+                    endDate: $endDate,
+                    customOption: .custom,
+                    onSelectionChanged: updateDateRange
+                )
                 .padding(.horizontal)
-                .onChange(of: dateRangeType) { _, _ in updateDateRange() }
 
-                if dateRangeType == .custom {
-                    HStack {
-                        DatePicker("From", selection: $startDate, displayedComponents: .date)
-                        DatePicker("To", selection: $endDate, displayedComponents: .date)
+                if filteredItems.isEmpty {
+                    CardSurface {
+                        ContentUnavailableView(
+                            "No Data",
+                            systemImage: "chart.pie",
+                            description: Text("No expenses found in the selected period.")
+                        )
                     }
                     .padding(.horizontal)
-                }
-
-                // MARK: Summary Cards (3 decisions)
-                VStack(spacing: 12) {
-                    // Total + change
-                    HStack(spacing: 12) {
-                        SummaryCard(title: "Period Total", amount: totalSpent, color: .blue)
-                        SummaryCard(title: "vs Previous", amount: periodChange, color: periodChange > 0 ? .red : .green, isPercent: true)
-                    }
-
-                    HStack(spacing: 12) {
-                        // Budget risk
-                        VStack(spacing: 4) {
-                            Text("Budget Used")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if budgets.isEmpty && monthlyBudgetSettings.first?.monthlyTotalBudget == nil {
-                                Text("—")
-                                    .font(.title3)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Text("\(String(format: "%.0f", budgetUsedPercent))%")
-                                    .font(.title3)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(budgetUsedPercent > 100 ? .red : budgetUsedPercent > 80 ? .orange : .green)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                        // Top overspender
-                        VStack(spacing: 4) {
-                            Text("Top Overspend")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let over = topOverspender {
-                                Text(over.category)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Text("+₹\(String(format: "%.0f", over.overBy))")
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            } else {
-                                Text("None")
-                                    .font(.title3)
-                                    .foregroundStyle(.green)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                }
-                .padding(.horizontal)
-
-                // MARK: Ring Chart
-                if !categoryAmount.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Category Breakdown")
-                            .font(.headline)
-
-                        if !selectedCategory.isEmpty {
-                            HStack {
-                                Text(selectedCategory)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Text("₹\(String(format: "%.0f", selectedPrice))")
-                                    .fontWeight(.bold)
-                            }
-                            .font(.subheadline)
-                            .padding(8)
-                            .background(.blue.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-
-                        Chart(categoryAmount, id: \.category) { entry in
-                            SectorMark(
-                                angle: .value("Category", entry.amount),
-                                innerRadius: .ratio(0.6),
-                                angularInset: 1.5
+                    .padding(.bottom, 24)
+                } else {
+                    // MARK: Summary Cards (3 decisions)
+                    VStack(spacing: 12) {
+                        // Total + change
+                        HStack(spacing: 12) {
+                            MetricCard(
+                                title: "Period Total",
+                                value: "₹\(String(format: "%.0f", totalSpent))",
+                                valueColor: .blue,
+                                overlayTint: .blue
                             )
-                            .foregroundStyle(by: .value("Category", entry.category.displayName))
-                            .cornerRadius(4)
+                            MetricCard(
+                                title: "vs Previous",
+                                value: "\(periodChange >= 0 ? "+" : "")\(String(format: "%.1f", periodChange))%",
+                                valueColor: periodChange > 0 ? .red : .green,
+                                overlayTint: periodChange > 0 ? .red : .green
+                            )
                         }
-                        .chartAngleSelection(value: $selectedCategoryAmount)
-                        .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
-                        .frame(height: 220)
+
+                        HStack(spacing: 12) {
+                            MetricCard(
+                                title: "Budget Used",
+                                value: budgets.isEmpty && monthlyBudgetSettings.first?.monthlyTotalBudget == nil
+                                    ? "—"
+                                    : "\(String(format: "%.0f", budgetUsedPercent))%",
+                                valueColor: budgetUsedPercent > 100 ? .red : budgetUsedPercent > 80 ? .orange : .green,
+                                overlayTint: budgetUsedPercent > 100 ? .red : budgetUsedPercent > 80 ? .orange : .green
+                            )
+
+                            MetricCard(
+                                title: "Top Overspend",
+                                value: topOverspender?.category ?? "None",
+                                valueColor: topOverspender == nil ? .green : .primary,
+                                valueFont: .subheadline,
+                                overlayTint: topOverspender == nil ? .green : .red
+                            ) {
+                                if let over = topOverspender {
+                                    Text("+₹\(String(format: "%.0f", over.overBy))")
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                        }
                     }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
                     .padding(.horizontal)
-                }
 
-                // MARK: Insight Cards
-                VStack(spacing: 10) {
-                    if let top = categoryAmount.first {
-                        let pct = totalSpent > 0 ? (top.amount / totalSpent * 100) : 0
-                        InsightRow(icon: "flame.fill", color: .orange,
-                                   text: "\(top.category.displayName) is \(String(format: "%.0f", pct))% of spending",
-                                   detail: "₹\(String(format: "%.0f", top.amount)) in this period")
-                    }
-                    if periodChange != 0 {
-                        let dir = periodChange > 0 ? "more" : "less"
-                        InsightRow(icon: periodChange > 0 ? "arrow.up.right" : "arrow.down.right",
-                                   color: periodChange > 0 ? .red : .green,
-                                   text: "\(String(format: "%.0f", abs(periodChange)))% \(dir) than previous period",
-                                   detail: "Previous: ₹\(String(format: "%.0f", previousPeriodTotal))")
-                    }
-                    if budgetUsedPercent > 80 && !budgets.isEmpty {
-                        InsightRow(icon: "exclamationmark.triangle.fill", color: .orange,
-                                   text: "Budget \(String(format: "%.0f", budgetUsedPercent))% used",
-                                   detail: "Consider reducing discretionary spending")
-                    }
-                }
-                .padding()
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .padding(.horizontal)
+                    // MARK: Ring Chart
+                    if !categoryAmount.isEmpty {
+                        ChartContainer(title: "Category Breakdown") {
+                            if !selectedCategory.isEmpty {
+                                HStack {
+                                    Text(selectedCategory)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    Text("₹\(String(format: "%.0f", selectedPrice))")
+                                        .fontWeight(.bold)
+                                }
+                                .font(.subheadline)
+                                .padding(8)
+                                .background(.blue.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
 
-                // MARK: Historical Charts
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Spending Over Time")
-                        .font(.headline)
-                    ChartView(categories: ExpenseCategory.allCases)
-                        .frame(height: 250)
+                            Chart(categoryAmount, id: \.category) { entry in
+                                SectorMark(
+                                    angle: .value("Category", entry.amount),
+                                    innerRadius: .ratio(0.6),
+                                    angularInset: 1.5
+                                )
+                                .foregroundStyle(by: .value("Category", entry.category.displayName))
+                                .cornerRadius(4)
+                            }
+                            .chartAngleSelection(value: $selectedCategoryAmount)
+                            .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
+                            .frame(height: 220)
+                            .accessibilityLabel("Category breakdown chart")
+                            .accessibilityValue("\(categoryAmount.count) categories")
+                        }
+                        .padding(.horizontal)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedCategory)
+                    }
+
+                    // MARK: Insight Cards
+                    CardSurface {
+                        VStack(spacing: 10) {
+                            if let top = categoryAmount.first {
+                                let pct = totalSpent > 0 ? (top.amount / totalSpent * 100) : 0
+                                InsightRow(icon: "flame.fill", color: .orange,
+                                           text: "\(top.category.displayName) is \(String(format: "%.0f", pct))% of spending",
+                                           detail: "₹\(String(format: "%.0f", top.amount)) in this period")
+                            }
+                            if periodChange != 0 {
+                                let dir = periodChange > 0 ? "more" : "less"
+                                InsightRow(icon: periodChange > 0 ? "arrow.up.right" : "arrow.down.right",
+                                           color: periodChange > 0 ? .red : .green,
+                                           text: "\(String(format: "%.0f", abs(periodChange)))% \(dir) than previous period",
+                                           detail: "Previous: ₹\(String(format: "%.0f", previousPeriodTotal))")
+                            }
+                            if budgetUsedPercent > 80 && !budgets.isEmpty {
+                                InsightRow(icon: "exclamationmark.triangle.fill", color: .orange,
+                                           text: "Budget \(String(format: "%.0f", budgetUsedPercent))% used",
+                                           detail: "Consider reducing discretionary spending")
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+
+                    // MARK: Historical Charts
+                    ChartContainer(title: "Spending Over Time") {
+                        ChartView(categories: ExpenseCategory.allCases)
+                            .frame(height: 250)
+                            .accessibilityLabel("Spending over time chart")
+                            .accessibilityValue("Interactive chart with week, month, and year ranges")
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
                 }
-                .padding()
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .padding(.horizontal)
-                .padding(.bottom, 24)
             }
             .padding(.top, 8)
         }
-        .onAppear { updateDateRange() }
+        .onAppear {
+            updateDateRange()
+            OverviewTip.hasViewedOverview = true
+        }
         .onChange(of: selectedCategoryAmount) { _, newValue in
             if let selectedAmount = newValue {
                 if let entry = categoryAmount.first(where: { $0.cumulativeAmountSt <= selectedAmount && selectedAmount < $0.cumulativeAmountEnd }) {

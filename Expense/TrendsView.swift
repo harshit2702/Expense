@@ -226,12 +226,7 @@ struct TrendsView: View {
                     .padding(.horizontal)
                 
                 // Period picker
-                Picker("Period", selection: $trendPeriod) {
-                    ForEach(TrendPeriod.allCases) { period in
-                        Text(period.rawValue).tag(period)
-                    }
-                }
-                .pickerStyle(.segmented)
+                PeriodSegmentedPicker(selection: $trendPeriod)
                 .padding(.horizontal)
                 
                 if filteredItems.isEmpty {
@@ -243,10 +238,10 @@ struct TrendsView: View {
                 } else {
                     // Stats row
                     HStack(spacing: 8) {
-                        StatCard(title: "Total", value: "₹\(String(format: "%.0f", totalSpend))", icon: "indianrupeesign.circle.fill", color: .blue)
-                        StatCard(title: "Daily Avg", value: "₹\(String(format: "%.0f", averageDailySpend))", icon: "chart.line.uptrend.xyaxis", color: .green)
+                        ValueStatCard(icon: "indianrupeesign.circle.fill", title: "Total", value: "₹\(String(format: "%.0f", totalSpend))", color: .blue)
+                        ValueStatCard(icon: "chart.line.uptrend.xyaxis", title: "Daily Avg", value: "₹\(String(format: "%.0f", averageDailySpend))", color: .green)
                         if let highest = highestDay {
-                            StatCard(title: "Peak", value: "₹\(String(format: "%.0f", highest.amount))", icon: "arrow.up.circle.fill", color: .orange)
+                            ValueStatCard(icon: "arrow.up.circle.fill", title: "Peak", value: "₹\(String(format: "%.0f", highest.amount))", color: .orange)
                         }
                     }
                     .padding(.horizontal)
@@ -488,36 +483,10 @@ struct TrendsView: View {
             }
             .padding(.vertical)
         }
+        .animation(.easeInOut(duration: 0.25), value: trendPeriod)
         .onAppear {
             ViewTrendsTip.hasViewedTrends = true
         }
-    }
-}
-
-// MARK: - Stat Card
-
-struct StatCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-            Text(value)
-                .font(.headline)
-                .minimumScaleFactor(0.7)
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

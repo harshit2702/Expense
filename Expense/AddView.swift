@@ -54,9 +54,10 @@ struct AddView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(ExpenseCategory.primaryCases) { category in
-                                CategoryChip(
+                                SelectableChip(
                                     title: category.displayName,
-                                    isSelected: selectedCategory == category
+                                    isSelected: selectedCategory == category,
+                                    isCapsule: true
                                 ) {
                                     selectedCategory = category
                                 }
@@ -81,9 +82,13 @@ struct AddView: View {
                 Section("Payment Method") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
                         ForEach(PaymentMethod.allCases) { method in
-                            PaymentMethodChip(
+                            SelectableChip(
                                 title: method.displayName,
-                                isSelected: selectedPaymentMethod == method
+                                isSelected: selectedPaymentMethod == method,
+                                fillsWidth: true,
+                                isCapsule: false,
+                                cornerRadius: 10,
+                                fontWeight: .semibold
                             ) {
                                 selectedPaymentMethod = method
                             }
@@ -117,7 +122,9 @@ struct AddView: View {
             } message: {
                 Text(validationMessage)
             }
-            .sensoryFeedback(.success, trigger: saveTrigger)
+            .sensoryFeedback(.selection, trigger: selectedCategory)
+            .sensoryFeedback(.selection, trigger: selectedPaymentMethod)
+            .sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.8), trigger: saveTrigger)
         }
     }
 
@@ -149,46 +156,6 @@ struct AddView: View {
         isPresented = false
     }
 
-}
-
-private struct CategoryChip: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .foregroundStyle(isSelected ? .white : .primary)
-                .background(isSelected ? Color.blue : Color.secondary.opacity(0.12))
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct PaymentMethodChip: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .foregroundStyle(isSelected ? .white : .primary)
-                .background(isSelected ? Color.blue : Color.secondary.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 #Preview {

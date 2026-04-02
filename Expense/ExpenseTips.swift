@@ -101,4 +101,13 @@ struct OverviewTip: Tip {
     var title: Text { Text("Visual Overview") }
     var message: Text? { Text("Tap a pie chart segment to see spending details for that category.") }
     var image: Image? { Image(systemName: "chart.pie.fill") }
+
+    @Parameter
+    static var hasViewedOverview: Bool = false
+
+    var rules: [Rule] {
+        [
+            #Rule(Self.$hasViewedOverview) { $0 == false }
+        ]
+    }
 }

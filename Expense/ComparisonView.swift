@@ -87,20 +87,15 @@ struct ComparisonView: View {
                 TipView(compareTip)
                     .padding(.horizontal)
                     .onAppear { CompareSpendingTip.hasCompared = true }
+
                 // Period Selectors
                 GroupBox("Period A (Current)") {
-                    HStack {
-                        DatePicker("From", selection: $periodAStart, displayedComponents: .date)
-                        DatePicker("To", selection: $periodAEnd, displayedComponents: .date)
-                    }
+                    DateIntervalFields(startDate: $periodAStart, endDate: $periodAEnd)
                 }
                 .padding(.horizontal)
                 
                 GroupBox("Period B (Previous)") {
-                    HStack {
-                        DatePicker("From", selection: $periodBStart, displayedComponents: .date)
-                        DatePicker("To", selection: $periodBEnd, displayedComponents: .date)
-                    }
+                    DateIntervalFields(startDate: $periodBStart, endDate: $periodBEnd)
                 }
                 .padding(.horizontal)
 
@@ -109,20 +104,30 @@ struct ComparisonView: View {
                 
                 // Summary Cards
                 HStack(spacing: 12) {
-                    SummaryCard(title: primaryTitle, amount: primaryTotal, color: .blue)
-                    SummaryCard(title: secondaryTitle, amount: secondaryTotal, color: .orange)
-                    SummaryCard(
+                    MetricCard(
+                        title: primaryTitle,
+                        value: "₹\(String(format: "%.0f", primaryTotal))",
+                        valueColor: .blue,
+                        overlayTint: .blue
+                    )
+                    MetricCard(
+                        title: secondaryTitle,
+                        value: "₹\(String(format: "%.0f", secondaryTotal))",
+                        valueColor: .orange,
+                        overlayTint: .orange
+                    )
+                    MetricCard(
                         title: "Change",
-                        amount: flippedPercentChange,
-                        color: flippedPercentChange > 0 ? .red : .green,
-                        isPercent: true
+                        value: "\(flippedPercentChange >= 0 ? "+" : "")\(String(format: "%.1f", flippedPercentChange))%",
+                        valueColor: flippedPercentChange > 0 ? .red : .green,
+                        overlayTint: flippedPercentChange > 0 ? .red : .green
                     )
                 }
                 .padding(.horizontal)
                 
                 // Comparison Chart
                 if !comparisonData.isEmpty {
-                    GroupBox("Category Comparison") {
+                    ChartContainer(title: "Category Comparison") {
                         Chart(comparisonData, id: \.category) { entry in
                             let primaryAmount = isFlipped ? entry.periodB : entry.periodA
                             let secondaryAmount = isFlipped ? entry.periodA : entry.periodB
@@ -143,6 +148,8 @@ struct ComparisonView: View {
                         }
                         .chartForegroundStyleScale([primaryLegend: .blue, secondaryLegend: .orange])
                         .frame(height: 300)
+                        .accessibilityLabel("Category comparison chart")
+                        .accessibilityValue("Compares \(comparisonData.count) categories across two periods")
                     }
                     .padding(.horizontal)
                 } else {
@@ -155,8 +162,13 @@ struct ComparisonView: View {
                 
                 // Category Breakdown Table
                 if !comparisonData.isEmpty {
-                    GroupBox("Category Breakdown") {
+                    CardSurface {
                         VStack(spacing: 0) {
+                            Text("Category Breakdown")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, 8)
+
                             // Header
                             HStack {
                                 Text("Category")
@@ -217,6 +229,7 @@ struct ComparisonView: View {
             }
             .padding(.vertical)
         }
+        .animation(.easeInOut(duration: 0.25), value: isFlipped)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -226,37 +239,6 @@ struct ComparisonView: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Summary Card
-
-struct SummaryCard: View {
-    let title: String
-    let amount: Double
-    let color: Color
-    var isPercent: Bool = false
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(isPercent
-                 ? "\(amount >= 0 ? "+" : "")\(String(format: "%.1f", amount))%"
-                 : "₹\(String(format: "%.0f", amount))")
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundStyle(color)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.ultraThinMaterial)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(color.opacity(0.08))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

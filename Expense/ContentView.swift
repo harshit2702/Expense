@@ -488,6 +488,7 @@ struct EntryListView: View {
     @State private var showImportResult = false
     @State private var importFailures: [ImportFailure] = []
     @State private var editingItem: Item?
+    @State private var listIdentity = UUID()
     @FocusState private var isSearchFocused: Bool
     
     private let searchTip = SearchExpensesTip()
@@ -521,35 +522,47 @@ struct EntryListView: View {
         List {
             TipView(searchTip)
 
-            ForEach(groupedByDay, id: \.date) { group in
-                Section {
-                    ForEach(group.items, id: \.id) { item in
-                        entryRow(for: item)
-                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                Button {
-                                    editingItem = item
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.blue)
+            if groupedByDay.isEmpty {
+                ContentUnavailableView(
+                    "No Entries",
+                    systemImage: "tray",
+                    description: Text(searchText.isEmpty ? "Add an expense to get started." : "Try a different search or filter.")
+                )
+            } else {
+                ForEach(groupedByDay, id: \.date) { group in
+                    Section {
+                        ForEach(group.items, id: \.id) { item in
+                            entryRow(for: item)
+                                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                    Button {
+                                        editingItem = item
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    .tint(.blue)
 
-                                Button {
-                                    commandCenter.selectedEntryID = item.id
-                                    openWindow(id: "entry-detail", value: item.id)
-                                } label: {
-                                    Label("Open Window", systemImage: "macwindow")
+                                    Button {
+                                        commandCenter.selectedEntryID = item.id
+                                        openWindow(id: "entry-detail", value: item.id)
+                                    } label: {
+                                        Label("Open Window", systemImage: "macwindow")
+                                    }
+                                    .tint(.indigo)
                                 }
-                                .tint(.indigo)
-                            }
+                        }
+                        .onDelete { offsets in deleteItems(from: group.items, at: offsets) }
+                    } header: {
+                        Text(group.date.formatted(.dateTime.month(.abbreviated).day().year()))
                     }
-                    .onDelete { offsets in deleteItems(from: group.items, at: offsets) }
-                } header: {
-                    Text(group.date.formatted(.dateTime.month(.abbreviated).day().year()))
                 }
             }
         }
+        .id(listIdentity)
         .listStyle(.insetGrouped)
         .navigationTitle("Entries")
+        .refreshable {
+            listIdentity = UUID()
+        }
         .navigationDestination(for: Item.self) { item in
             ItemInfo(item: item)
         }
@@ -557,6 +570,13 @@ struct EntryListView: View {
         .applySearchFocus($isSearchFocused)
         .onChange(of: searchText) { _, newValue in
             if !newValue.isEmpty { SearchExpensesTip.hasSearched = true }
+            listIdentity = UUID()
+        }
+        .onChange(of: paymentFilter) { _, _ in
+            listIdentity = UUID()
+        }
+        .onChange(of: items.count) { _, _ in
+            listIdentity = UUID()
         }
         .onChange(of: commandCenter.addExpenseCommandTick) { _, _ in
             isPresented = true
@@ -583,6 +603,7 @@ struct EntryListView: View {
             deleteTrigger.toggle()
         }
         .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.5), trigger: deleteTrigger)
+        .sensoryFeedback(.selection, trigger: paymentFilter)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Menu {

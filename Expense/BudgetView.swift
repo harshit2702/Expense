@@ -29,20 +29,29 @@ struct BudgetView: View {
 
             SwiftUI.Section("Total Monthly Budget") {
                 HStack(spacing: 12) {
-                    MetricChip(
+                    MetricCard(
                         title: "Configured",
                         value: monthlySettings.monthlyTotalBudget.map { "₹\(String(format: "%.0f", $0))" } ?? "Not set",
-                        tone: .blue
+                        valueColor: .blue,
+                        valueFont: .footnote,
+                        cornerRadius: 10,
+                        overlayTint: .blue
                     )
-                    MetricChip(
+                    MetricCard(
                         title: "Spent",
                         value: "₹\(String(format: "%.0f", monthSpentOverall))",
-                        tone: .orange
+                        valueColor: .orange,
+                        valueFont: .footnote,
+                        cornerRadius: 10,
+                        overlayTint: .orange
                     )
-                    MetricChip(
+                    MetricCard(
                         title: "Remaining",
                         value: monthlyRemainingText,
-                        tone: monthRemainingValue.map { $0 < 0 ? .red : .green } ?? .secondary
+                        valueColor: monthRemainingValue.map { $0 < 0 ? .red : .green } ?? .secondary,
+                        valueFont: .footnote,
+                        cornerRadius: 10,
+                        overlayTint: monthRemainingValue.map { $0 < 0 ? .red : .green } ?? .secondary
                     )
                 }
                 .frame(maxWidth: .infinity)
@@ -341,29 +350,6 @@ private struct BudgetAllocationDatum: Identifiable {
     let category: String
     let type: String
     let amount: Double
-}
-
-private struct MetricChip: View {
-    let title: String
-    let value: String
-    let tone: Color
-
-    var body: some View {
-        VStack(spacing: 3) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.footnote)
-                .fontWeight(.semibold)
-                .foregroundStyle(tone)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
 }
 
 // MARK: - Budget Row

@@ -113,32 +113,33 @@ struct FinancialHealthView: View {
                     }
                 }
                 .frame(width: 180, height: 180)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Financial health score")
+                .accessibilityValue("\(totalScore) out of 100, \(scoreLabel)")
 
                 // Breakdown
-                VStack(spacing: 12) {
-                    ScoreBreakdownRow(label: "Budget Adherence", score: Int(round(budgetAdherenceScore)), maxScore: 40,
-                                      color: budgetAdherenceScore > 25 ? .green : budgetAdherenceScore > 15 ? .orange : .red)
-                    ScoreBreakdownRow(label: "Spend Stability", score: Int(round(stabilityScore)), maxScore: 30,
-                                      color: stabilityScore > 20 ? .green : stabilityScore > 10 ? .orange : .red)
-                    ScoreBreakdownRow(label: "Month vs Last Month", score: Int(round(momScore)), maxScore: 30,
-                                      color: momScore > 20 ? .green : momScore > 10 ? .orange : .red)
-                }
-                .padding()
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                // Recommendations
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Recommendations")
-                        .font(.headline)
-
-                    ForEach(recommendations, id: \.text) { rec in
-                        InsightRow(icon: rec.icon, color: rec.color, text: rec.text, detail: rec.detail)
+                CardSurface {
+                    VStack(spacing: 12) {
+                        ScoreBreakdownRow(label: "Budget Adherence", score: Int(round(budgetAdherenceScore)), maxScore: 40,
+                                          color: budgetAdherenceScore > 25 ? .green : budgetAdherenceScore > 15 ? .orange : .red)
+                        ScoreBreakdownRow(label: "Spend Stability", score: Int(round(stabilityScore)), maxScore: 30,
+                                          color: stabilityScore > 20 ? .green : stabilityScore > 10 ? .orange : .red)
+                        ScoreBreakdownRow(label: "Month vs Last Month", score: Int(round(momScore)), maxScore: 30,
+                                          color: momScore > 20 ? .green : momScore > 10 ? .orange : .red)
                     }
                 }
-                .padding()
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                // Recommendations
+                CardSurface {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Recommendations")
+                            .font(.headline)
+
+                        ForEach(recommendations, id: \.text) { rec in
+                            InsightRow(icon: rec.icon, color: rec.color, text: rec.text, detail: rec.detail)
+                        }
+                    }
+                }
             }
             .padding()
         }
