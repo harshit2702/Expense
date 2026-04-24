@@ -321,12 +321,12 @@ struct EntriesSidebarView: View {
     }
 
     private var weekTotal: Double {
-        let ago = cal.date(byAdding: .day, value: -7, to: Date())!
+        let ago = cal.date(byAdding: .day, value: -7, to: Date()) ?? Date()
         return items.filter { $0.date >= ago }.reduce(0) { $0 + $1.amount }
     }
 
     private var monthTotal: Double {
-        let start = cal.dateInterval(of: .month, for: Date())!.start
+        let start = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
         return items.filter { $0.date >= start }.reduce(0) { $0 + $1.amount }
     }
 
@@ -370,13 +370,13 @@ struct AnalyticsSectionList: View {
     private var cal: Calendar { Calendar.current }
 
     private var monthTotal: Double {
-        let start = cal.dateInterval(of: .month, for: Date())!.start
+        let start = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
         return items.filter { $0.date >= start }.reduce(0) { $0 + $1.amount }
     }
 
     private var prevMonthTotal: Double {
-        let startOfMonth = cal.dateInterval(of: .month, for: Date())!.start
-        let startOfPrev = cal.date(byAdding: .month, value: -1, to: startOfMonth)!
+        let startOfMonth = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
+        let startOfPrev = cal.date(byAdding: .month, value: -1, to: startOfMonth) ?? startOfMonth
         return items.filter { $0.date >= startOfPrev && $0.date < startOfMonth }.reduce(0) { $0 + $1.amount }
     }
 
@@ -761,7 +761,7 @@ struct EntryListView: View {
     }
 
     private func makeCSV() -> String {
-        let header = "Date,Amount,Category,Payment Method,Description"
+        let header = "Date,Amount,Category,Payment Method,Transaction Type,Description"
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate, .withTime, .withColonSeparatorInTime]
         let rows = items.sorted { $0.date < $1.date }.map { item in
@@ -769,8 +769,9 @@ struct EntryListView: View {
             let amountText = String(format: "%.2f", item.amount)
             let categoryText = item.category.displayName
             let methodText = item.paymentMethod?.displayName ?? "Not set"
+            let transactionTypeText = item.transactionType.displayName
             let descriptionText = item.descriptions
-            return [dateText, amountText, categoryText, methodText, descriptionText].map(csvEscape).joined(separator: ",")
+            return [dateText, amountText, categoryText, methodText, transactionTypeText, descriptionText].map(csvEscape).joined(separator: ",")
         }
         return ([header] + rows).joined(separator: "\n")
     }
@@ -805,6 +806,7 @@ struct EntryListView: View {
             let amountIdx = header.firstIndex(of: "amount")
             let categoryIdx = header.firstIndex(of: "category")
             let methodIdx = header.firstIndex(of: "paymentmethod")
+            let transactionTypeIdx = header.firstIndex(of: "transactiontype")
             let descIdx = header.firstIndex(of: "description") ?? header.firstIndex(of: "desc")
 
             var imported = 0
@@ -821,6 +823,7 @@ struct EntryListView: View {
                 let dateText = dateIdx.flatMap { cols[safe: $0] } ?? ""
                 let categoryText = categoryIdx.flatMap { cols[safe: $0] } ?? ""
                 let methodText = methodIdx.flatMap { cols[safe: $0] } ?? ""
+                let transactionTypeText = transactionTypeIdx.flatMap { cols[safe: $0] } ?? ""
                 let descriptionText = descIdx.flatMap { cols[safe: $0] } ?? ""
                 let amountText = amountIdx.flatMap { cols[safe: $0] } ?? ""
 
@@ -828,6 +831,7 @@ struct EntryListView: View {
                 let date = parseDateOrToday(dateText)
                 let category = mapCategory(categoryText)
                 let method = mapPaymentMethod(methodText)
+                let transactionType = mapTransactionType(transactionTypeText)
 
                 let item = Item(
                     id: UUID(),
@@ -835,7 +839,8 @@ struct EntryListView: View {
                     amount: parsedAmount,
                     descriptions: descriptionText,
                     category: category,
-                    paymentMethod: method
+                    paymentMethod: method,
+                    transactionType: transactionType
                 )
 
                 await MainActor.run {
@@ -1020,6 +1025,30 @@ struct EntryListView: View {
 
         return .other
     }
+
+    private func mapTransactionType(_ raw: String) -> TransactionType {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.isEmpty {
+            return .expense
+        }
+
+        if let exact = TransactionType.allCases.first(where: { $0.rawValue.lowercased() == normalized }) {
+            return exact
+        }
+
+        if let displayMatch = TransactionType.allCases.first(where: { $0.displayName.lowercased() == normalized }) {
+            return displayMatch
+        }
+
+        if normalized.contains("bill") || normalized.contains("credit card payment") {
+            return .creditCardBillPayment
+        }
+        if normalized.contains("transfer") {
+            return .transfer
+        }
+
+        return .expense
+    }
 }
 
 private struct ImportFailure: Identifiable {
@@ -1131,6 +1160,7 @@ struct EditEntryView: View {
     @State private var amountText: String
     @State private var descriptionText: String
     @State private var selectedCategory: ExpenseCategory
+    @State private var selectedTransactionType: TransactionType
     @State private var selectedPaymentMethod: PaymentMethod
     @State private var showValidationAlert = false
 
@@ -1140,6 +1170,7 @@ struct EditEntryView: View {
         _amountText = State(initialValue: String(format: "%.0f", item.amount))
         _descriptionText = State(initialValue: item.descriptions)
         _selectedCategory = State(initialValue: item.category)
+        _selectedTransactionType = State(initialValue: item.transactionType)
         _selectedPaymentMethod = State(initialValue: item.paymentMethod ?? .other)
     }
 
@@ -1168,6 +1199,14 @@ struct EditEntryView: View {
                     Picker("Payment Method", selection: $selectedPaymentMethod) {
                         ForEach(PaymentMethod.allCases) { method in
                             Text(method.displayName).tag(method)
+                        }
+                    }
+                }
+
+                Section("Transaction Type") {
+                    Picker("Transaction Type", selection: $selectedTransactionType) {
+                        ForEach(TransactionType.allCases) { type in
+                            Text(type.displayName).tag(type)
                         }
                     }
                 }
@@ -1207,7 +1246,8 @@ struct EditEntryView: View {
             amount: amount,
             descriptions: descriptionText,
             category: selectedCategory,
-            paymentMethod: selectedPaymentMethod
+            paymentMethod: selectedPaymentMethod,
+            transactionType: selectedTransactionType
         )
 
         ExpenseDataManager.deleteItemAndUpdateSummaries(
