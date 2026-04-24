@@ -806,9 +806,11 @@ struct EntryListView: View {
             let amountIdx = header.firstIndex(of: "amount")
             let categoryIdx = header.firstIndex(of: "category")
             let methodIdx = header.firstIndex(of: "paymentmethod")
+            let transactionTypeHeader = normalizeHeader("Transaction Type")
+            let transactionTypeFallbackHeader = normalizeHeader("TransactionType")
             let transactionTypeIdx =
-                header.firstIndex(of: normalizeHeader("Transaction Type")) ??
-                header.firstIndex(of: normalizeHeader("TransactionType"))
+                header.firstIndex(of: transactionTypeHeader) ??
+                header.firstIndex(of: transactionTypeFallbackHeader)
             let descIdx = header.firstIndex(of: "description") ?? header.firstIndex(of: "desc")
 
             var imported = 0
