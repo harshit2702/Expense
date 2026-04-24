@@ -1040,7 +1040,9 @@ struct EntryListView: View {
             return displayMatch
         }
 
-        if normalized.contains("bill") || normalized.contains("credit card payment") {
+        if normalized.contains("bill")
+            || normalized.contains("creditcard")
+            || (normalized.contains("credit") && normalized.contains("card") && normalized.contains("payment")) {
             return .creditCardBillPayment
         }
         if normalized.contains("transfer") {

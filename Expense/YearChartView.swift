@@ -26,8 +26,8 @@ struct YearChartView: View {
         monthlyItems.keys.max() ?? Date()
     }
 
-    private func calculateTotalAmount(for startDate: Date, rangeInDays: Int) -> Double {
-        let endExclusive = startDate.addingTimeInterval(TimeInterval(rangeInDays * 24 * 3600))
+    private func calculateTotalAmount(for startDate: Date, rangeInDaysExclusive: Int) -> Double {
+        let endExclusive = startDate.addingTimeInterval(TimeInterval(rangeInDaysExclusive * 24 * 3600))
         let filteredItems = monthlyItems.filter { $0.key >= startDate && $0.key < endExclusive }
         return filteredItems.reduce(0) { $0 + $1.value }
     }
@@ -59,7 +59,7 @@ struct YearChartView: View {
             .chartScrollPosition(x: $scrollPosition)
             .onAppear {
                 scrollPosition = mostRecentDate.addingTimeInterval(-336 * 24 * 3600)
-                totalAmount = calculateTotalAmount(for: scrollPosition, rangeInDays: 365)
+                totalAmount = calculateTotalAmount(for: scrollPosition, rangeInDaysExclusive: 365)
             }
             .onChange(of: selectedMonth) { _, newValue in
                 if let newValue {
@@ -68,7 +68,7 @@ struct YearChartView: View {
                 }
             }
             .onChange(of: scrollPosition) { _, newScrollPosition in
-                totalAmount = calculateTotalAmount(for: newScrollPosition, rangeInDays: 365)
+                totalAmount = calculateTotalAmount(for: newScrollPosition, rangeInDaysExclusive: 365)
             }
             .chartXSelection(value: $selectedMonth)
             .chartXAxis {

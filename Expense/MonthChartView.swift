@@ -27,8 +27,8 @@ struct MonthChartView: View {
         dailyItems.keys.max() ?? Date()
     }
 
-    private func calculateTotalAmount(for startDate: Date, rangeInDays: Int) -> Double {
-        let endExclusive = startDate.addingTimeInterval(TimeInterval(rangeInDays * 24 * 3600))
+    private func calculateTotalAmount(for startDate: Date, rangeInDaysExclusive: Int) -> Double {
+        let endExclusive = startDate.addingTimeInterval(TimeInterval(rangeInDaysExclusive * 24 * 3600))
         return dailyItems.filter { $0.key >= startDate && $0.key < endExclusive }.reduce(0) { $0 + $1.value }
     }
 
@@ -59,7 +59,7 @@ struct MonthChartView: View {
             .chartScrollPosition(x: $scrollPosition)
             .onAppear {
                 scrollPosition = mostRecentDate.addingTimeInterval(-29 * 3600 * 24)
-                totalAmount = calculateTotalAmount(for: scrollPosition, rangeInDays: 30)
+                totalAmount = calculateTotalAmount(for: scrollPosition, rangeInDaysExclusive: 30)
             }
             .onChange(of: selectedDay) { _, newValue in
                 if let newValue {
@@ -67,7 +67,7 @@ struct MonthChartView: View {
                 }
             }
             .onChange(of: scrollPosition) { _, newScrollPosition in
-                totalAmount = calculateTotalAmount(for: newScrollPosition, rangeInDays: 30)
+                totalAmount = calculateTotalAmount(for: newScrollPosition, rangeInDaysExclusive: 30)
             }
             .chartXSelection(value: $selectedDay)
             .chartXAxis {

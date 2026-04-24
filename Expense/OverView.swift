@@ -54,10 +54,9 @@ struct OverviewView: View {
 
     private var categoryAmount: [(category: ExpenseCategory, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
         let amountDict = filteredItems.reduce(into: [ExpenseCategory: Double]()) { $0[$1.category, default: 0] += $1.amount }
-        let sorted = amountDict.sorted { $0.value > $1.value }.map { $0.key }
+        let sorted = amountDict.sorted { $0.value > $1.value }
         var cum: Double = 0
-        return sorted.map { cat in
-            let amt = amountDict[cat] ?? 0
+        return sorted.map { cat, amt in
             cum += amt
             return (cat, amt, cum - amt, cum)
         }
@@ -384,11 +383,6 @@ struct OverviewView: View {
             startDate = calendar.date(byAdding: .day, value: -29, to: Date()) ?? Date()
             endDate = Date()
         case .custom:
-            if startDate > endDate {
-                let temp = startDate
-                startDate = endDate
-                endDate = temp
-            }
             break
         }
     }
