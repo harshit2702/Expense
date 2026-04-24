@@ -261,22 +261,22 @@ struct ComparisonView: View {
         .animation(.easeInOut(duration: 0.25), value: isFlipped)
         .onChange(of: periodAStart) { _, newValue in
             if newValue > periodAEnd {
-                periodAEnd = newValue
+                periodAEnd = Calendar.current.date(byAdding: .day, value: 1, to: newValue) ?? newValue
             }
         }
         .onChange(of: periodAEnd) { _, newValue in
             if newValue < periodAStart {
-                periodAStart = newValue
+                periodAStart = Calendar.current.date(byAdding: .day, value: -1, to: newValue) ?? newValue
             }
         }
         .onChange(of: periodBStart) { _, newValue in
             if newValue > periodBEnd {
-                periodBEnd = newValue
+                periodBEnd = Calendar.current.date(byAdding: .day, value: 1, to: newValue) ?? newValue
             }
         }
         .onChange(of: periodBEnd) { _, newValue in
             if newValue < periodBStart {
-                periodBStart = newValue
+                periodBStart = Calendar.current.date(byAdding: .day, value: -1, to: newValue) ?? newValue
             }
         }
         .toolbar {

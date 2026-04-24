@@ -358,12 +358,12 @@ struct OverviewView: View {
         }
         .onChange(of: startDate) { _, newValue in
             if newValue > endDate {
-                endDate = newValue
+                endDate = Calendar.current.date(byAdding: .day, value: 1, to: newValue) ?? newValue
             }
         }
         .onChange(of: endDate) { _, newValue in
             if newValue < startDate {
-                startDate = newValue
+                startDate = Calendar.current.date(byAdding: .day, value: -1, to: newValue) ?? newValue
             }
         }
     }
