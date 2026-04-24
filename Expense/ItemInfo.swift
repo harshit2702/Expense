@@ -35,6 +35,8 @@ struct ItemInfo: View {
                     DetailRow(label: "Category", value: item.category.displayName)
                     Divider()
                     DetailRow(label: "Payment Method", value: item.paymentMethod?.displayName ?? "Not set")
+                    Divider()
+                    DetailRow(label: "Transaction Type", value: item.transactionType.displayName)
                     if !item.descriptions.isEmpty {
                         Divider()
                         DetailRow(label: "Description", value: item.descriptions)

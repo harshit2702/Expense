@@ -21,6 +21,9 @@ struct OverviewView: View {
     @State private var selectedCategoryAmount: Double?
     @State private var selectedCategory: String = ""
     @State private var selectedPrice: Double = 0.0
+    @State private var selectedPaymentAmount: Double?
+    @State private var selectedPaymentLabel: String = ""
+    @State private var selectedPaymentPrice: Double = 0
     @State private var dateRangeType: DateRangeType = .last30Days
     @State private var startDate = Date()
     @State private var endDate = Date()
@@ -54,10 +57,36 @@ struct OverviewView: View {
         let sorted = amountDict.sorted { $0.value > $1.value }.map { $0.key }
         var cum: Double = 0
         return sorted.map { cat in
-            let amt = amountDict[cat]!
+            let amt = amountDict[cat] ?? 0
             cum += amt
             return (cat, amt, cum - amt, cum)
         }
+    }
+
+    private var paymentMethodAmount: [(method: String, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
+        let amountDict = filteredItems.reduce(into: [String: Double]()) { result, item in
+            let methodName = item.paymentMethod?.displayName ?? "Not Set"
+            result[methodName, default: 0] += item.amount
+        }
+        let sorted = amountDict.sorted { $0.value > $1.value }
+        var cumulative = 0.0
+        return sorted.map { entry in
+            let start = cumulative
+            cumulative += entry.value
+            return (entry.key, entry.value, start, cumulative)
+        }
+    }
+
+    private var creditCardSpend: Double {
+        filteredItems
+            .filter { $0.paymentMethod == .creditCard && $0.transactionType == .expense }
+            .reduce(0) { $0 + $1.amount }
+    }
+
+    private var creditCardBillPayment: Double {
+        filteredItems
+            .filter { $0.transactionType == .creditCardBillPayment }
+            .reduce(0) { $0 + $1.amount }
     }
 
     // Previous period for comparison
@@ -210,6 +239,60 @@ struct OverviewView: View {
                         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedCategory)
                     }
 
+                    if !paymentMethodAmount.isEmpty {
+                        ChartContainer(title: "Payment Method Breakdown") {
+                            if !selectedPaymentLabel.isEmpty {
+                                HStack {
+                                    Text(selectedPaymentLabel)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    Text("₹\(String(format: "%.0f", selectedPaymentPrice))")
+                                        .fontWeight(.bold)
+                                }
+                                .font(.subheadline)
+                                .padding(8)
+                                .background(.blue.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+
+                            Chart(paymentMethodAmount, id: \.method) { entry in
+                                SectorMark(
+                                    angle: .value("Payment Method", entry.amount),
+                                    innerRadius: .ratio(0.62),
+                                    angularInset: 1.5
+                                )
+                                .foregroundStyle(by: .value("Payment Method", entry.method))
+                                .cornerRadius(4)
+                            }
+                            .chartAngleSelection(value: $selectedPaymentAmount)
+                            .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
+                            .frame(height: 220)
+                            .accessibilityLabel("Payment method breakdown chart")
+                            .accessibilityValue("\(paymentMethodAmount.count) payment methods")
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    CardSurface {
+                        VStack(spacing: 10) {
+                            InsightRow(
+                                icon: "creditcard.fill",
+                                color: .blue,
+                                text: "Credit card spend: ₹\(String(format: "%.0f", creditCardSpend))",
+                                detail: "Card bill paid: ₹\(String(format: "%.0f", creditCardBillPayment))"
+                            )
+
+                            let delta = creditCardSpend - creditCardBillPayment
+                            InsightRow(
+                                icon: delta > 0 ? "arrow.up.right.square.fill" : "arrow.down.right.square.fill",
+                                color: delta > 0 ? .orange : .green,
+                                text: delta > 0 ? "Unsettled card usage trend" : "Card dues being settled",
+                                detail: "\(delta >= 0 ? "+" : "-")₹\(String(format: "%.0f", abs(delta))) vs bill payments"
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
+
                     // MARK: Insight Cards
                     CardSurface {
                         VStack(spacing: 10) {
@@ -263,6 +346,27 @@ struct OverviewView: View {
                 }
             }
         }
+        .onChange(of: selectedPaymentAmount) { _, newValue in
+            if let selectedAmount = newValue {
+                if let entry = paymentMethodAmount.first(where: { $0.cumulativeAmountSt <= selectedAmount && selectedAmount < $0.cumulativeAmountEnd }) {
+                    selectedPaymentLabel = entry.method
+                    selectedPaymentPrice = entry.amount
+                } else {
+                    selectedPaymentLabel = ""
+                    selectedPaymentPrice = 0
+                }
+            }
+        }
+        .onChange(of: startDate) { _, newValue in
+            if newValue > endDate {
+                endDate = newValue
+            }
+        }
+        .onChange(of: endDate) { _, newValue in
+            if newValue < startDate {
+                startDate = newValue
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -280,6 +384,11 @@ struct OverviewView: View {
             startDate = calendar.date(byAdding: .day, value: -29, to: Date()) ?? Date()
             endDate = Date()
         case .custom:
+            if startDate > endDate {
+                let temp = startDate
+                startDate = endDate
+                endDate = temp
+            }
             break
         }
     }

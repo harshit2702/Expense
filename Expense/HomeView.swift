@@ -27,8 +27,8 @@ struct HomeView: View {
 
     private var lastMonthItems: [Item] {
         let cal = Calendar.current
-        let startOfThisMonth = cal.dateInterval(of: .month, for: Date())!.start
-        let startOfLastMonth = cal.date(byAdding: .month, value: -1, to: startOfThisMonth)!
+        let startOfThisMonth = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
+        let startOfLastMonth = cal.date(byAdding: .month, value: -1, to: startOfThisMonth) ?? startOfThisMonth
         return items.filter { $0.date >= startOfLastMonth && $0.date < startOfThisMonth }
     }
 
@@ -54,12 +54,12 @@ struct HomeView: View {
     private var last7DaysTotals: [(date: Date, amount: Double)] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        let sevenDaysAgo = cal.date(byAdding: .day, value: -6, to: today)!
+        let sevenDaysAgo = cal.date(byAdding: .day, value: -6, to: today) ?? today
         let recent = items.filter { $0.date >= sevenDaysAgo }
         let grouped = Dictionary(grouping: recent) { cal.startOfDay(for: $0.date) }
 
         return (0..<7).map { offset in
-            let day = cal.date(byAdding: .day, value: offset, to: sevenDaysAgo)!
+            let day = cal.date(byAdding: .day, value: offset, to: sevenDaysAgo) ?? sevenDaysAgo
             let amount = grouped[day]?.reduce(0) { $0 + $1.amount } ?? 0
             return (date: day, amount: amount)
         }
