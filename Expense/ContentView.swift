@@ -1044,9 +1044,7 @@ struct EntryListView: View {
             return displayMatch
         }
 
-        if normalized.contains("bill")
-            || normalized.contains("creditcard")
-            || (normalized.contains("credit") && normalized.contains("card") && normalized.contains("payment")) {
+        if isCreditCardBillPayment(normalized) {
             return .creditCardBillPayment
         }
         if normalized.contains("transfer") {
@@ -1054,6 +1052,12 @@ struct EntryListView: View {
         }
 
         return .expense
+    }
+
+    private func isCreditCardBillPayment(_ normalized: String) -> Bool {
+        normalized.contains("bill")
+            || normalized.contains("creditcard")
+            || (normalized.contains("credit") && normalized.contains("card") && normalized.contains("payment"))
     }
 }
 

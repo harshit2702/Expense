@@ -37,6 +37,8 @@ struct TrendsView: View {
         }
     }
     
+    /// Inclusive current-period start where today is the last day of the window.
+    /// Example: 7-day period => start is 6 days ago (today included).
     var startDate: Date {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())

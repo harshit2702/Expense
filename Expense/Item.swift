@@ -193,6 +193,7 @@ final class Item: Identifiable, Hashable {
     var category: ExpenseCategory
     var paymentMethod: PaymentMethod?
     /// Stored as raw string for migration resilience when enum cases evolve.
+    /// Existing rows without this value (or with unknown values) safely default to `.expense`.
     var transactionTypeRaw: String?
 
     var transactionType: TransactionType {
