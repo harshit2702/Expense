@@ -447,27 +447,25 @@ struct TrendsView: View {
                     .padding(.horizontal)
 
                     GroupBox("Payment Method Trend") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Chart {
-                                ForEach(paymentDailySeries) { entry in
-                                    BarMark(
-                                        x: .value("Date", entry.date, unit: .day),
-                                        y: .value("Amount", entry.amount)
-                                    )
-                                    .foregroundStyle(by: .value("Payment Method", entry.method))
-                                }
+                        Chart {
+                            ForEach(paymentDailySeries) { entry in
+                                BarMark(
+                                    x: .value("Date", entry.date, unit: .day),
+                                    y: .value("Amount", entry.amount)
+                                )
+                                .foregroundStyle(by: .value("Payment Method", entry.method))
+                            }
 
-                                if let selectedPaymentDate, let selectedPaymentDayTotal {
-                                    RuleMark(x: .value("Selected Date", selectedPaymentDate, unit: .day))
-                                        .foregroundStyle(.gray.opacity(0.35))
-                                        .annotation(position: .top, alignment: .leading) {
-                                            Text("\(selectedPaymentDate.formatted(.dateTime.month(.abbreviated).day()))\n₹\(String(format: "%.0f", selectedPaymentDayTotal))")
-                                                .font(.caption)
-                                                .fontWeight(.semibold)
-                                                .padding(6)
-                                                .background(.ultraThinMaterial)
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                        }
+                            if let selectedPaymentDate, let selectedPaymentDayTotal {
+                                RuleMark(x: .value("Selected Date", selectedPaymentDate, unit: .day))
+                                    .foregroundStyle(.gray.opacity(0.35))
+                                    .annotation(position: .top, alignment: .leading) {
+                                        Text("\(selectedPaymentDate.formatted(.dateTime.month(.abbreviated).day()))\n₹\(String(format: "%.0f", selectedPaymentDayTotal))")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .padding(6)
+                                            .background(.ultraThinMaterial)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
                                     }
                             }
                         }
