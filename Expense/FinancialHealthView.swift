@@ -20,7 +20,8 @@ struct FinancialHealthView: View {
     /// Budget adherence score (0–40 pts)
     private var budgetAdherenceScore: Double {
         guard !budgets.isEmpty else { return 20 } // neutral if no budgets
-        let startOfMonth = Calendar.current.dateInterval(of: .month, for: Date())!.start
+        let calendar = Calendar.current
+        let startOfMonth = calendar.dateInterval(of: .month, for: Date())?.start ?? Date()
         var totalUsedPct: Double = 0
         for budget in budgets {
             let spent = items.filter { $0.category == budget.category && $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
@@ -35,7 +36,8 @@ struct FinancialHealthView: View {
     /// Spend volatility score (0–30 pts) — lower daily variance is better
     private var stabilityScore: Double {
         let cal = Calendar.current
-        let thirtyDaysAgo = cal.date(byAdding: .day, value: -29, to: Date())!
+        let today = cal.startOfDay(for: Date())
+        let thirtyDaysAgo = cal.date(byAdding: .day, value: -29, to: today) ?? today
         let recent = items.filter { $0.date >= thirtyDaysAgo }
         let grouped = Dictionary(grouping: recent) { cal.startOfDay(for: $0.date) }
         let dailyTotals = grouped.values.map { $0.reduce(0) { $0 + $1.amount } }
@@ -54,8 +56,8 @@ struct FinancialHealthView: View {
     /// Month-over-month change score (0–30 pts) — spending less = better
     private var momScore: Double {
         let cal = Calendar.current
-        let startOfMonth = cal.dateInterval(of: .month, for: Date())!.start
-        let startOfLastMonth = cal.date(byAdding: .month, value: -1, to: startOfMonth)!
+        let startOfMonth = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
+        let startOfLastMonth = cal.date(byAdding: .month, value: -1, to: startOfMonth) ?? startOfMonth
 
         let thisMonth = items.filter { $0.date >= startOfMonth }.reduce(0) { $0 + $1.amount }
         let lastMonth = items.filter { $0.date >= startOfLastMonth && $0.date < startOfMonth }.reduce(0) { $0 + $1.amount }

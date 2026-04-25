@@ -38,7 +38,9 @@ struct TrendsView: View {
     }
     
     var startDate: Date {
-        Calendar.current.date(byAdding: .day, value: -trendPeriod.days, to: Date()) ?? Date()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .day, value: -(trendPeriod.days - 1), to: today) ?? today
     }
     
     var itemsAfterInspectorFilters: [Item] {
@@ -54,9 +56,10 @@ struct TrendsView: View {
     }
 
     var previousPeriodItems: [Item] {
-        let end = startDate
-        let previousStart = Calendar.current.date(byAdding: .day, value: -trendPeriod.days, to: end) ?? end
-        return itemsAfterInspectorFilters.filter { $0.date >= previousStart && $0.date < end }
+        let calendar = Calendar.current
+        let currentStart = calendar.startOfDay(for: startDate)
+        let previousStart = calendar.date(byAdding: .day, value: -trendPeriod.days, to: currentStart) ?? currentStart
+        return itemsAfterInspectorFilters.filter { $0.date >= previousStart && $0.date < currentStart }
     }
     
     var dailyTotals: [(date: Date, amount: Double)] {

@@ -261,7 +261,7 @@ func generateDates(count: Int, startingFrom startDate: Date) -> [Date] {
     var currentDate = startDate
     for _ in 0..<count {
         dates.append(currentDate)
-        currentDate = Calendar.current.date(byAdding: .day, value: -1, to: currentDate)!
+        currentDate = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate
     }
     return dates
 }
@@ -284,8 +284,8 @@ let descriptions: [String] = [
 let dates = generateDates(count: 100, startingFrom: Date())
 
 let sampleItems: [Item] = dates.map { date in
-    let randomCategory = categories.randomElement()!
-    let randomDescription = descriptions.randomElement()!
+    let randomCategory = categories.randomElement() ?? .miscellaneous
+    let randomDescription = descriptions.randomElement() ?? "Expense"
     return Item(date: date, amount: Double(Int.random(in: 5...200)), descriptions: randomDescription, category: randomCategory)
 }
 

@@ -172,6 +172,22 @@ struct ComparisonView: View {
                             if let selectedChartCategory {
                                 RuleMark(x: .value("Selected Category", selectedChartCategory))
                                     .foregroundStyle(.gray.opacity(0.35))
+                                    .annotation(position: .top, alignment: .leading) {
+                                        if let selected = selectedComparisonData {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(selected.category.displayName)
+                                                    .font(.caption)
+                                                    .fontWeight(.semibold)
+                                                Text("\(primaryLegend): ₹\(String(format: "%.0f", selected.primary))")
+                                                    .font(.caption2)
+                                                Text("\(secondaryLegend): ₹\(String(format: "%.0f", selected.secondary))")
+                                                    .font(.caption2)
+                                            }
+                                            .padding(6)
+                                            .background(.ultraThinMaterial)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        }
+                                    }
                             }
                         }
                         .chartXSelection(value: $selectedChartCategory)
