@@ -21,6 +21,7 @@ struct BudgetView: View {
     @State private var showMonthlyBudgetAlert = false
     @State private var deleteTrigger = false
     @State private var rebalanceTrigger = false
+    @State private var selectedAllocationCategory: String?
     private let budgetTip = SetBudgetTip()
     
     var body: some View {
@@ -105,7 +106,27 @@ struct BudgetView: View {
                             )
                             .position(by: .value("Type", entry.type))
                             .foregroundStyle(by: .value("Type", entry.type))
+
+                            if let selectedAllocationCategory, let selectedAllocationSummary {
+                                RuleMark(x: .value("Selected Category", selectedAllocationCategory))
+                                    .foregroundStyle(.gray.opacity(0.35))
+                                    .annotation(position: .top, alignment: .leading) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(selectedAllocationSummary.category)
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                            Text("Limit: ₹\(String(format: "%.0f", selectedAllocationSummary.limit))")
+                                                .font(.caption2)
+                                            Text("Spent: ₹\(String(format: "%.0f", selectedAllocationSummary.spent))")
+                                                .font(.caption2)
+                                        }
+                                        .padding(6)
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                            }
                         }
+                        .chartXSelection(value: $selectedAllocationCategory)
                         .chartLegend(position: .bottom)
                         .frame(height: 220)
                     }
@@ -342,6 +363,15 @@ struct BudgetView: View {
                 BudgetAllocationDatum(category: budget.category.displayName, type: "Spent", amount: currentMonthSpending(for: budget.category))
             ]
         }
+    }
+
+    private var selectedAllocationSummary: (category: String, limit: Double, spent: Double)? {
+        guard let selectedAllocationCategory else { return nil }
+        let points = allocationChartData.filter { $0.category == selectedAllocationCategory }
+        guard !points.isEmpty else { return nil }
+        let limit = points.first(where: { $0.type == "Limit" })?.amount ?? 0
+        let spent = points.first(where: { $0.type == "Spent" })?.amount ?? 0
+        return (selectedAllocationCategory, limit, spent)
     }
 }
 

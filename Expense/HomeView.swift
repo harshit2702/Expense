@@ -17,6 +17,7 @@ struct HomeView: View {
     @Query private var budgets: [Budget]
     @Query private var monthlyBudgetSettings: [MonthlyBudgetSettings]
     @State private var isAddPresented = false
+    @State private var selectedWeekDate: Date?
     private let addExpenseTip = AddExpenseTip()
 
     // MARK: Computed Data
@@ -27,8 +28,8 @@ struct HomeView: View {
 
     private var lastMonthItems: [Item] {
         let cal = Calendar.current
-        let startOfThisMonth = cal.dateInterval(of: .month, for: Date())!.start
-        let startOfLastMonth = cal.date(byAdding: .month, value: -1, to: startOfThisMonth)!
+        let startOfThisMonth = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
+        let startOfLastMonth = cal.date(byAdding: .month, value: -1, to: startOfThisMonth) ?? startOfThisMonth
         return items.filter { $0.date >= startOfLastMonth && $0.date < startOfThisMonth }
     }
 
@@ -54,12 +55,12 @@ struct HomeView: View {
     private var last7DaysTotals: [(date: Date, amount: Double)] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        let sevenDaysAgo = cal.date(byAdding: .day, value: -6, to: today)!
+        let sevenDaysAgo = cal.date(byAdding: .day, value: -6, to: today) ?? today
         let recent = items.filter { $0.date >= sevenDaysAgo }
         let grouped = Dictionary(grouping: recent) { cal.startOfDay(for: $0.date) }
 
         return (0..<7).map { offset in
-            let day = cal.date(byAdding: .day, value: offset, to: sevenDaysAgo)!
+            let day = cal.date(byAdding: .day, value: offset, to: sevenDaysAgo) ?? sevenDaysAgo
             let amount = grouped[day]?.reduce(0) { $0 + $1.amount } ?? 0
             return (date: day, amount: amount)
         }
@@ -78,6 +79,11 @@ struct HomeView: View {
 
     private var highestSpendDay: (date: Date, amount: Double)? {
         last7DaysTotals.max(by: { $0.amount < $1.amount })
+    }
+
+    private var selectedWeekDayAmount: Double? {
+        guard let selectedWeekDate else { return nil }
+        return last7DaysTotals.first(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedWeekDate) })?.amount
     }
 
     private var budgetRiskLevel: String {
@@ -264,7 +270,21 @@ struct HomeView: View {
                 )
                 .foregroundStyle(.blue.gradient)
                 .cornerRadius(4)
+
+                if let selectedWeekDate, let selectedWeekDayAmount {
+                    RuleMark(x: .value("Selected Day", selectedWeekDate, unit: .day))
+                        .foregroundStyle(.gray.opacity(0.35))
+                        .annotation(position: .top, alignment: .leading) {
+                            Text("\(selectedWeekDate.formatted(.dateTime.weekday(.abbreviated)))\n₹\(String(format: "%.0f", selectedWeekDayAmount))")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(6)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                }
             }
+            .chartXSelection(value: $selectedWeekDate)
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day)) {
                     AxisValueLabel(format: .dateTime.weekday(.abbreviated))

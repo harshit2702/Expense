@@ -27,9 +27,9 @@ struct WeekChartView: View {
         dailyItems.keys.max() ?? Date()
     }
 
-    private func calculateTotalAmount(for startDate: Date, rangeInDays: Int) -> Double {
-        let endDate = startDate.addingTimeInterval(TimeInterval(rangeInDays * 24 * 3600))
-        return dailyItems.filter { $0.key >= startDate && $0.key <= endDate }.reduce(0) { $0 + $1.value }
+    private func calculateTotalAmount(for startDate: Date, rangeInDaysExclusive: Int) -> Double {
+        let endExclusive = startDate.addingTimeInterval(TimeInterval(rangeInDaysExclusive * 24 * 3600))
+        return dailyItems.filter { $0.key >= startDate && $0.key < endExclusive }.reduce(0) { $0 + $1.value }
     }
 
     var body: some View {
@@ -39,13 +39,6 @@ struct WeekChartView: View {
                     x: .value("Day", date, unit: .day),
                     y: .value("Amount", amount)
                 )
-                .annotation(position: .top, spacing: 2) {
-                    if amount > 0 {
-                        Text("\(Int(amount))")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
                 if let selectedDay {
                     RuleMark(x: .value("Selected", selectedDay, unit: .day))
                         .foregroundStyle(Color.gray.opacity(0.3))
@@ -66,6 +59,7 @@ struct WeekChartView: View {
             .chartScrollPosition(x: $scrollPosition)
             .onAppear {
                 scrollPosition = mostRecentDate.addingTimeInterval(-6 * 3600 * 24)
+                totalAmount = calculateTotalAmount(for: scrollPosition, rangeInDaysExclusive: 7)
             }
             .onChange(of: selectedDay) { _, newValue in
                 if let newValue {
@@ -73,7 +67,7 @@ struct WeekChartView: View {
                 }
             }
             .onChange(of: scrollPosition) { _, newScrollPosition in
-                totalAmount = calculateTotalAmount(for: newScrollPosition, rangeInDays: 7)
+                totalAmount = calculateTotalAmount(for: newScrollPosition, rangeInDaysExclusive: 7)
             }
             .chartXSelection(value: $selectedDay)
             .chartXAxis {
@@ -86,4 +80,3 @@ struct WeekChartView: View {
         }
     }
 }
-

@@ -16,6 +16,9 @@ struct TrendsView: View {
     @Query private var monthlyBudgetSettings: [MonthlyBudgetSettings]
     
     @State private var trendPeriod: TrendPeriod = .last30Days
+    @State private var selectedTrendDate: Date?
+    @State private var selectedWeekday: String?
+    @State private var selectedPaymentDate: Date?
     private let trendsTip = ViewTrendsTip()
     
     enum TrendPeriod: String, CaseIterable, Identifiable {
@@ -34,8 +37,12 @@ struct TrendsView: View {
         }
     }
     
+    /// Inclusive current-period start where today is the last day of the window.
+    /// Example: 7-day period => start is 6 days ago (today included).
     var startDate: Date {
-        Calendar.current.date(byAdding: .day, value: -trendPeriod.days, to: Date()) ?? Date()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .day, value: -(trendPeriod.days - 1), to: today) ?? today
     }
     
     var itemsAfterInspectorFilters: [Item] {
@@ -51,9 +58,10 @@ struct TrendsView: View {
     }
 
     var previousPeriodItems: [Item] {
-        let end = startDate
-        let previousStart = Calendar.current.date(byAdding: .day, value: -trendPeriod.days, to: end) ?? end
-        return itemsAfterInspectorFilters.filter { $0.date >= previousStart && $0.date < end }
+        let calendar = Calendar.current
+        let currentStart = calendar.startOfDay(for: startDate)
+        let previousStart = calendar.date(byAdding: .day, value: -trendPeriod.days, to: currentStart) ?? currentStart
+        return itemsAfterInspectorFilters.filter { $0.date >= previousStart && $0.date < currentStart }
     }
     
     var dailyTotals: [(date: Date, amount: Double)] {
@@ -202,6 +210,52 @@ struct TrendsView: View {
     var topWeekday: (day: String, amount: Double)? {
         weekdaySpending.max(by: { $0.amount < $1.amount })
     }
+
+    private struct PaymentMethodDailyPoint: Identifiable {
+        let date: Date
+        let method: String
+        let amount: Double
+        var id: String { "\(date.timeIntervalSince1970)-\(method)" }
+    }
+
+    var paymentDailySeries: [PaymentMethodDailyPoint] {
+        let grouped = filteredItems.reduce(into: [Date: [String: Double]]()) { result, item in
+            let day = Calendar.current.startOfDay(for: item.date)
+            let method = item.paymentMethod?.displayName ?? "Not Set"
+            result[day, default: [:]][method, default: 0] += item.amount
+        }
+
+        return grouped
+            .flatMap { day, methodTotals in
+                methodTotals.map { method, amount in
+                    PaymentMethodDailyPoint(date: day, method: method, amount: amount)
+                }
+            }
+            .sorted { lhs, rhs in
+                if lhs.date == rhs.date { return lhs.method < rhs.method }
+                return lhs.date < rhs.date
+            }
+    }
+
+    var selectedTrendAmount: Double? {
+        guard let selectedTrendDate else { return nil }
+        let day = Calendar.current.startOfDay(for: selectedTrendDate)
+        return dailyTotals.first(where: { Calendar.current.isDate($0.date, inSameDayAs: day) })?.amount
+    }
+
+    var selectedPaymentDayTotal: Double? {
+        guard let selectedPaymentDate else { return nil }
+        let day = Calendar.current.startOfDay(for: selectedPaymentDate)
+        let total = paymentDailySeries
+            .filter { Calendar.current.isDate($0.date, inSameDayAs: day) }
+            .reduce(0) { $0 + $1.amount }
+        return total > 0 ? total : nil
+    }
+
+    var selectedWeekdayAmount: Double? {
+        guard let selectedWeekday else { return nil }
+        return weekdaySpending.first(where: { $0.day == selectedWeekday })?.amount
+    }
     
     // Day-over-day spending growth
     var spendingTrend: String {
@@ -323,7 +377,21 @@ struct TrendsView: View {
                                 .foregroundStyle(.red)
                                 .lineStyle(StrokeStyle(lineWidth: 2))
                             }
+
+                            if let selectedTrendDate, let selectedTrendAmount {
+                                RuleMark(x: .value("Selected Date", selectedTrendDate, unit: .day))
+                                    .foregroundStyle(.gray.opacity(0.35))
+                                    .annotation(position: .top, alignment: .leading) {
+                                        Text("\(selectedTrendDate.formatted(.dateTime.month(.abbreviated).day()))\n₹\(String(format: "%.0f", selectedTrendAmount))")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .padding(6)
+                                            .background(.ultraThinMaterial)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                            }
                         }
+                        .chartXSelection(value: $selectedTrendDate)
                         .chartYAxisLabel("Amount (₹)")
                         .frame(height: 250)
                         
@@ -340,14 +408,30 @@ struct TrendsView: View {
 
                     GroupBox("Weekday Heatmap") {
                         VStack(alignment: .leading, spacing: 10) {
-                            Chart(weekdaySpending, id: \.day) { entry in
-                                BarMark(
-                                    x: .value("Weekday", entry.day),
-                                    y: .value("Amount", entry.amount)
-                                )
-                                .foregroundStyle(by: .value("Amount", entry.amount))
-                                .cornerRadius(4)
+                            Chart {
+                                ForEach(weekdaySpending, id: \.day) { entry in
+                                    BarMark(
+                                        x: .value("Weekday", entry.day),
+                                        y: .value("Amount", entry.amount)
+                                    )
+                                    .foregroundStyle(by: .value("Amount", entry.amount))
+                                    .cornerRadius(4)
+                                }
+
+                                if let selectedWeekday, let selectedWeekdayAmount {
+                                    RuleMark(x: .value("Selected Weekday", selectedWeekday))
+                                        .foregroundStyle(.gray.opacity(0.35))
+                                        .annotation(position: .top) {
+                                            Text("\(selectedWeekday)\n₹\(String(format: "%.0f", selectedWeekdayAmount))")
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                                .padding(6)
+                                                .background(.ultraThinMaterial)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        }
                             }
+                            }
+                            .chartXSelection(value: $selectedWeekday)
                             .chartForegroundStyleScale(
                                 domain: [0, max(weekdaySpending.map(\.amount).max() ?? 1, 1)],
                                 range: [Color.green.opacity(0.35), Color.orange, Color.red]
@@ -361,6 +445,35 @@ struct TrendsView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                    }
+                    .padding(.horizontal)
+
+                    GroupBox("Payment Method Trend") {
+                        Chart {
+                            ForEach(paymentDailySeries) { entry in
+                                BarMark(
+                                    x: .value("Date", entry.date, unit: .day),
+                                    y: .value("Amount", entry.amount)
+                                )
+                                .foregroundStyle(by: .value("Payment Method", entry.method))
+                            }
+
+                            if let selectedPaymentDate, let selectedPaymentDayTotal {
+                                RuleMark(x: .value("Selected Date", selectedPaymentDate, unit: .day))
+                                    .foregroundStyle(.gray.opacity(0.35))
+                                    .annotation(position: .top, alignment: .leading) {
+                                        Text("\(selectedPaymentDate.formatted(.dateTime.month(.abbreviated).day()))\n₹\(String(format: "%.0f", selectedPaymentDayTotal))")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .padding(6)
+                                            .background(.ultraThinMaterial)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                            }
+                        }
+                        .chartXSelection(value: $selectedPaymentDate)
+                        .chartLegend(position: .bottom, alignment: .leading)
+                        .frame(height: 260)
                     }
                     .padding(.horizontal)
                     

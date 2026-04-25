@@ -33,7 +33,7 @@ struct ExpenseTimelineProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<ExpenseWidgetEntry>) -> Void) {
         // In production, fetch from shared SwiftData container via App Group
         let entry = ExpenseWidgetEntry(date: Date(), todayTotal: 0, weekTotal: 0, topCategory: "—")
-        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!
+        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: Date()) ?? Date().addingTimeInterval(3600)
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
         completion(timeline)
     }

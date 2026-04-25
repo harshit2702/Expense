@@ -21,12 +21,13 @@ struct ComparisonView: View {
     @State private var periodBStart: Date
     @State private var periodBEnd: Date
     @State private var isFlipped = false
+    @State private var selectedChartCategory: String?
     
     init() {
         let now = Date()
         let cal = Calendar.current
-        let monthAgo = cal.date(byAdding: .month, value: -1, to: now)!
-        let twoMonthsAgo = cal.date(byAdding: .month, value: -2, to: now)!
+        let monthAgo = cal.date(byAdding: .month, value: -1, to: now) ?? now
+        let twoMonthsAgo = cal.date(byAdding: .month, value: -2, to: now) ?? monthAgo
         _periodAStart = State(initialValue: monthAgo)
         _periodAEnd = State(initialValue: now)
         _periodBStart = State(initialValue: twoMonthsAgo)
@@ -79,6 +80,14 @@ struct ComparisonView: View {
         return allCategories.map { cat in
             (cat, dictA[cat] ?? 0, dictB[cat] ?? 0)
         }
+    }
+
+    private var selectedComparisonData: (category: ExpenseCategory, primary: Double, secondary: Double)? {
+        guard let selectedChartCategory else { return nil }
+        guard let entry = comparisonData.first(where: { $0.category.displayName == selectedChartCategory }) else { return nil }
+        let primaryAmount = isFlipped ? entry.periodB : entry.periodA
+        let secondaryAmount = isFlipped ? entry.periodA : entry.periodB
+        return (entry.category, primaryAmount, secondaryAmount)
     }
     
     var body: some View {
@@ -145,7 +154,29 @@ struct ComparisonView: View {
                             )
                             .foregroundStyle(by: .value("Period", secondaryLegend))
                             .position(by: .value("Period", secondaryLegend))
+
+                            if let selectedChartCategory {
+                                RuleMark(x: .value("Selected Category", selectedChartCategory))
+                                    .foregroundStyle(.gray.opacity(0.35))
+                                    .annotation(position: .top, alignment: .leading) {
+                                        if let selected = selectedComparisonData {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(selected.category.displayName)
+                                                    .font(.caption)
+                                                    .fontWeight(.semibold)
+                                                Text("\(primaryLegend): ₹\(String(format: "%.0f", selected.primary))")
+                                                    .font(.caption2)
+                                                Text("\(secondaryLegend): ₹\(String(format: "%.0f", selected.secondary))")
+                                                    .font(.caption2)
+                                            }
+                                            .padding(6)
+                                            .background(.ultraThinMaterial)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        }
+                                    }
+                            }
                         }
+                        .chartXSelection(value: $selectedChartCategory)
                         .chartForegroundStyleScale([primaryLegend: .blue, secondaryLegend: .orange])
                         .frame(height: 300)
                         .accessibilityLabel("Category comparison chart")
@@ -230,6 +261,26 @@ struct ComparisonView: View {
             .padding(.vertical)
         }
         .animation(.easeInOut(duration: 0.25), value: isFlipped)
+        .onChange(of: periodAStart) { _, newValue in
+            if newValue > periodAEnd {
+                periodAEnd = Calendar.current.date(byAdding: .day, value: 1, to: newValue) ?? newValue
+            }
+        }
+        .onChange(of: periodAEnd) { _, newValue in
+            if newValue < periodAStart {
+                periodAStart = Calendar.current.date(byAdding: .day, value: -1, to: newValue) ?? newValue
+            }
+        }
+        .onChange(of: periodBStart) { _, newValue in
+            if newValue > periodBEnd {
+                periodBEnd = Calendar.current.date(byAdding: .day, value: 1, to: newValue) ?? newValue
+            }
+        }
+        .onChange(of: periodBEnd) { _, newValue in
+            if newValue < periodBStart {
+                periodBStart = Calendar.current.date(byAdding: .day, value: -1, to: newValue) ?? newValue
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

@@ -20,6 +20,7 @@ struct AddView: View {
     @Query private var MCS: [MonthlyCategorySummary]
     @Binding var isPresented: Bool
     @State private var selectedCategory: ExpenseCategory = .food
+    @State private var selectedTransactionType: TransactionType = .expense
     @State private var selectedPaymentMethod: PaymentMethod = .upi
     @State private var showValidationAlert = false
     @State private var validationMessage = ""
@@ -76,6 +77,24 @@ struct AddView: View {
                         .datePickerStyle(.wheel)
                         .labelsHidden()
                         .frame(maxHeight: 110)
+                }
+
+                // MARK: Payment Method
+                Section("Transaction Type") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 8)], spacing: 8) {
+                        ForEach(TransactionType.allCases) { type in
+                            SelectableChip(
+                                title: type.displayName,
+                                isSelected: selectedTransactionType == type,
+                                fillsWidth: true,
+                                isCapsule: false,
+                                cornerRadius: 10,
+                                fontWeight: .semibold
+                            ) {
+                                selectedTransactionType = type
+                            }
+                        }
+                    }
                 }
 
                 // MARK: Payment Method
@@ -143,7 +162,8 @@ struct AddView: View {
             amount: parsedAmount,
             descriptions: description,
             category: selectedCategory,
-            paymentMethod: selectedPaymentMethod
+            paymentMethod: selectedPaymentMethod,
+            transactionType: selectedTransactionType
         )
         ExpenseDataManager.addItemAndUpdateSummaries(
             item: newItem,

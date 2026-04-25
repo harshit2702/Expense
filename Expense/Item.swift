@@ -160,6 +160,29 @@ enum PaymentMethodFilter: String, CaseIterable, Identifiable {
     }
 }
 
+enum TransactionType: String, Codable, CaseIterable, Identifiable, Comparable {
+    case expense
+    case creditCardBillPayment
+    case transfer
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .expense:
+            return "Expense"
+        case .creditCardBillPayment:
+            return "Credit Card Bill Payment"
+        case .transfer:
+            return "Transfer"
+        }
+    }
+
+    static func < (lhs: TransactionType, rhs: TransactionType) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 
 @Model
 final class Item: Identifiable, Hashable {
@@ -169,6 +192,14 @@ final class Item: Identifiable, Hashable {
     var descriptions: String
     var category: ExpenseCategory
     var paymentMethod: PaymentMethod?
+    /// Stored as raw string for migration resilience when enum cases evolve.
+    /// Existing rows without this value (or with unknown values) safely default to `.expense`.
+    var transactionTypeRaw: String?
+
+    var transactionType: TransactionType {
+        get { TransactionType(rawValue: transactionTypeRaw ?? "") ?? .expense }
+        set { transactionTypeRaw = newValue.rawValue }
+    }
     
     
     init(
@@ -177,7 +208,8 @@ final class Item: Identifiable, Hashable {
         amount: Double = 10.0,
         descriptions: String = "Text",
         category: ExpenseCategory = .breakfast,
-        paymentMethod: PaymentMethod? = .upi
+        paymentMethod: PaymentMethod? = .upi,
+        transactionType: TransactionType = .expense
     ) {
         self.id = id
         self.date = date
@@ -185,6 +217,7 @@ final class Item: Identifiable, Hashable {
         self.descriptions = descriptions
         self.category = category
         self.paymentMethod = paymentMethod
+        self.transactionTypeRaw = transactionType.rawValue
     }
 }
 
@@ -229,7 +262,7 @@ func generateDates(count: Int, startingFrom startDate: Date) -> [Date] {
     var currentDate = startDate
     for _ in 0..<count {
         dates.append(currentDate)
-        currentDate = Calendar.current.date(byAdding: .day, value: -1, to: currentDate)!
+        currentDate = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate
     }
     return dates
 }
@@ -252,8 +285,8 @@ let descriptions: [String] = [
 let dates = generateDates(count: 100, startingFrom: Date())
 
 let sampleItems: [Item] = dates.map { date in
-    let randomCategory = categories.randomElement()!
-    let randomDescription = descriptions.randomElement()!
+    let randomCategory = categories.randomElement() ?? .miscellaneous
+    let randomDescription = descriptions.randomElement() ?? "Expense"
     return Item(date: date, amount: Double(Int.random(in: 5...200)), descriptions: randomDescription, category: randomCategory)
 }
 
@@ -287,4 +320,3 @@ final class MonthlyBudgetSettings: Identifiable {
         self.updatedAt = updatedAt
     }
 }
-
