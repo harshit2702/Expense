@@ -1055,9 +1055,17 @@ struct EntryListView: View {
     }
 
     private func isCreditCardBillPayment(_ normalized: String) -> Bool {
-        normalized.contains("bill")
-            || normalized.contains("creditcard")
-            || (normalized.contains("credit") && normalized.contains("card") && normalized.contains("payment"))
+        let tokens = normalized
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+        let tokenSet = Set(tokens)
+
+        let hasCreditCardTokenPair = tokenSet.contains("credit") && tokenSet.contains("card")
+        let hasPaymentToken = tokenSet.contains("payment")
+        let hasBillToken = tokenSet.contains("bill")
+        let hasCombinedCreditCardToken = tokenSet.contains("creditcard")
+
+        return hasBillToken || hasCombinedCreditCardToken || (hasCreditCardTokenPair && hasPaymentToken)
     }
 }
 

@@ -52,7 +52,7 @@ struct OverviewView: View {
 
     private var totalSpent: Double { filteredItems.reduce(0) { $0 + $1.amount } }
 
-    private var categoryAmount: [(category: ExpenseCategory, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
+    private var categoryAmount: [(category: ExpenseCategory, amount: Double, cumulativeStart: Double, cumulativeEnd: Double)] {
         let amountDict = filteredItems.reduce(into: [ExpenseCategory: Double]()) { $0[$1.category, default: 0] += $1.amount }
         let sorted = amountDict.sorted { $0.value > $1.value }
         var cumulativeAmount: Double = 0
@@ -62,7 +62,7 @@ struct OverviewView: View {
         }
     }
 
-    private var paymentMethodAmount: [(method: String, amount: Double, cumulativeAmountSt: Double, cumulativeAmountEnd: Double)] {
+    private var paymentMethodAmount: [(method: String, amount: Double, cumulativeStart: Double, cumulativeEnd: Double)] {
         let amountDict = filteredItems.reduce(into: [String: Double]()) { result, item in
             let methodName = item.paymentMethod?.displayName ?? "Not Set"
             result[methodName, default: 0] += item.amount
@@ -336,7 +336,7 @@ struct OverviewView: View {
         }
         .onChange(of: selectedCategoryAmount) { _, newValue in
             if let selectedAmount = newValue {
-                if let entry = categoryAmount.first(where: { $0.cumulativeAmountSt <= selectedAmount && selectedAmount < $0.cumulativeAmountEnd }) {
+                if let entry = categoryAmount.first(where: { $0.cumulativeStart <= selectedAmount && selectedAmount < $0.cumulativeEnd }) {
                     selectedCategory = entry.category.displayName
                     selectedPrice = entry.amount
                 } else {
@@ -347,7 +347,7 @@ struct OverviewView: View {
         }
         .onChange(of: selectedPaymentAmount) { _, newValue in
             if let selectedAmount = newValue {
-                if let entry = paymentMethodAmount.first(where: { $0.cumulativeAmountSt <= selectedAmount && selectedAmount < $0.cumulativeAmountEnd }) {
+                if let entry = paymentMethodAmount.first(where: { $0.cumulativeStart <= selectedAmount && selectedAmount < $0.cumulativeEnd }) {
                     selectedPaymentLabel = entry.method
                     selectedPaymentPrice = entry.amount
                 } else {
