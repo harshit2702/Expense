@@ -1055,6 +1055,8 @@ struct EntryListView: View {
     }
 
     private func isCreditCardBillPayment(_ normalized: String) -> Bool {
+        // Intentionally split on non-alphanumeric characters so inputs like
+        // "credit-card payment" and "credit_card_payment" normalize to tokens.
         let tokens = normalized
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
             .map(String.init)
