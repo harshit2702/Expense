@@ -56,9 +56,9 @@ struct OverviewView: View {
         let amountDict = filteredItems.reduce(into: [ExpenseCategory: Double]()) { $0[$1.category, default: 0] += $1.amount }
         let sorted = amountDict.sorted { $0.value > $1.value }
         var cumulativeAmount: Double = 0
-        return sorted.map { cat, amt in
-            cumulativeAmount += amt
-            return (cat, amt, cumulativeAmount - amt, cumulativeAmount)
+        return sorted.map { category, amount in
+            cumulativeAmount += amount
+            return (category, amount, cumulativeAmount - amount, cumulativeAmount)
         }
     }
 

@@ -99,20 +99,6 @@ struct BudgetView: View {
                     }
 
                     if !allocationChartData.isEmpty {
-                        if let selectedAllocationSummary {
-                            HStack {
-                                Text(selectedAllocationSummary.category)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Text("Limit ₹\(String(format: "%.0f", selectedAllocationSummary.limit))")
-                                Text("Spent ₹\(String(format: "%.0f", selectedAllocationSummary.spent))")
-                            }
-                            .font(.caption)
-                            .padding(8)
-                            .background(.blue.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-
                         Chart(allocationChartData) { entry in
                             BarMark(
                                 x: .value("Category", entry.category),

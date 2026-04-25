@@ -137,20 +137,6 @@ struct ComparisonView: View {
                 // Comparison Chart
                 if !comparisonData.isEmpty {
                     ChartContainer(title: "Category Comparison") {
-                        if let selected = selectedComparisonData {
-                            HStack {
-                                Text(selected.category.displayName)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Text("\(primaryLegend): ₹\(String(format: "%.0f", selected.primary))")
-                                Text("\(secondaryLegend): ₹\(String(format: "%.0f", selected.secondary))")
-                            }
-                            .font(.caption)
-                            .padding(8)
-                            .background(.blue.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-
                         Chart(comparisonData, id: \.category) { entry in
                             let primaryAmount = isFlipped ? entry.periodB : entry.periodA
                             let secondaryAmount = isFlipped ? entry.periodA : entry.periodB
